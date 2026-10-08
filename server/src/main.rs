@@ -1,7 +1,7 @@
 mod routes;
 mod state;
 
-use axum::{Router, routing::get};
+use axum::{Router, routing::{get, post}};
 use state::AppState;
 use tower_http::cors::{CorsLayer, Any};
 use tracing_subscriber::EnvFilter;
@@ -25,6 +25,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/health", get(routes::health::health))
+        .route("/avatars", get(routes::avatars::list_avatars))
         .layer(cors)
         .with_state(state);
 
