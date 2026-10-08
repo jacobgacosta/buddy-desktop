@@ -6,6 +6,11 @@
     "strict": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "paths": {
+      "@buddy/types": ["../../packages/types/src"],
+      "@buddy/core": ["../../packages/core/src"],
+      "@buddy/renderer": ["../../packages/renderer/src"]
+    }
   }
 }
