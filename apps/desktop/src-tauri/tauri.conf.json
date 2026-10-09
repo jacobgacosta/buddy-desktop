@@ -1,0 +1,36 @@
+{
+  "productName": "Buddy",
+  "version": "0.1.0",
+  "identifier": "com.buddy.desktop",
+  "build": {
+    "beforeDevCommand": "pnpm dev --port 1420",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "buddy",
+        "title": "Buddy",
+        "width": 200,
+        "height": 200,
+        "minWidth": 120,
+        "minHeight": 120,
+        "transparent": true,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "resizable": false,
+        "x": 100,
+        "y": 100
+      }
+    ],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": []
+  }
+}
