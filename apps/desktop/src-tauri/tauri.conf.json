@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "identifier": "com.buddy.desktop",
   "build": {
-    "beforeDevCommand": "pnpm dev --port 1420",
+    "beforeDevCommand": "pnpm vite --port 1420",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "pnpm build",
     "frontendDist": "../dist"

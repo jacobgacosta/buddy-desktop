@@ -13,11 +13,17 @@ pub fn launch_sidecar(app: &tauri::App) {
     let sidecar_path = resource_path.join(binary_name());
     let avatars_dir = resource_path.join("avatars");
 
-    let child = std::process::Command::new(&sidecar_path)
+    let child = match std::process::Command::new(&sidecar_path)
         .env("PORT", "7788")
-        .env("AVATARS_DIR", avatars_dir.to_str().expect("avatars path must be valid UTF-8"))
+        .env("AVATARS_DIR", avatars_dir.to_str().unwrap_or("avatars"))
         .spawn()
-        .expect("failed to spawn buddy-server");
+    {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("[buddy] sidecar not launched ({e}): {sidecar_path:?} — start buddy-server manually");
+            return;
+        }
+    };
 
     app.manage(SidecarProcess(Mutex::new(Some(child))));
 }
