@@ -9,20 +9,25 @@ export function createPhysics(initial: Position): PhysicsState {
   return { pos: initial, vel: { x: 0, y: 0 }, target: null }
 }
 
-const WALK_SPEED = 80   // px/s
-const GRAVITY = 200     // px/s²
-const MAX_VEL_Y = 600   // px/s terminal velocity
-const ARRIVE_DIST = 2   // px
+const WALK_SPEED = 80  // px/s
+const ARRIVE_DIST = 2  // px
+
+// Avatar position bounds that keep the entire window on screen.
+// Window is WIN_W x WIN_H, avatar sits at (OFF_X, OFF_Y) within it.
+// wx = pos.x - offX  must be >= 0  → pos.x >= offX
+// wy = pos.y - offY  must be >= 0  → pos.y >= offY
+// wx + winW <= screenW             → pos.x <= screenW - winW + offX
+// wy + winH <= screenH             → pos.y <= screenH - winH + offY
+function clamp(v: number, lo: number, hi: number) {
+  return Math.max(lo, Math.min(hi, v))
+}
 
 export function tickPhysics(
   state: PhysicsState,
-  screenW: number,
-  screenH: number,
-  spriteSize: number,
   dt: number
 ): PhysicsState {
   const safeDt = Math.min(dt, 0.05)
-  const { pos, vel, target } = state
+  const { pos, target } = state
 
   if (target) {
     const dx = target.x - pos.x
@@ -41,7 +46,6 @@ export function tickPhysics(
     }
   }
 
-  // No target → stay still
   return { pos, vel: { x: 0, y: 0 }, target: null }
 }
 
@@ -49,14 +53,13 @@ export function setWalkTarget(state: PhysicsState, target: Position): PhysicsSta
   return { ...state, target }
 }
 
-export function randomEdgeTarget(screenW: number, screenH: number, spriteSize: number): Position {
-  const safeW = Math.max(0, screenW - spriteSize)
-  const safeH = Math.max(0, screenH - spriteSize)
-  const edge = Math.floor(Math.random() * 4)
-  switch (edge) {
-    case 0: return { x: Math.random() * safeW, y: 0 }
-    case 1: return { x: safeW, y: Math.random() * safeH }
-    case 2: return { x: Math.random() * safeW, y: safeH }
-    default: return { x: 0, y: Math.random() * safeH }
+// Random target near the current position — safe for multi-monitor setups.
+// Never uses absolute screen bounds so the character stays on whichever monitor it's on.
+export function randomNearbyTarget(current: Position, radius = 350): Position {
+  const angle = Math.random() * 2 * Math.PI
+  const dist = 80 + Math.random() * radius
+  return {
+    x: current.x + Math.cos(angle) * dist,
+    y: current.y + Math.sin(angle) * dist,
   }
 }

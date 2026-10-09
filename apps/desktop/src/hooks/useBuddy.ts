@@ -25,6 +25,7 @@ export function useBuddy(avatar: Avatar) {
   }, [])
 
   const sendMessage = useCallback(async (text: string) => {
+    sm.current!.wakeUp()
     const userMsg: Message = {
       id: crypto.randomUUID(),
       role: 'user',
@@ -70,10 +71,22 @@ export function useBuddy(avatar: Avatar) {
     }
   }, [avatar])
 
+  // Sleep after 3 minutes of no chat
   useEffect(() => {
-    const timer = setTimeout(() => sm.current!.setSleep(), 5 * 60 * 1000)
+    const timer = setTimeout(() => sm.current!.setSleep(), 3 * 60 * 1000)
     return () => clearTimeout(timer)
   }, [lastUserActivity])
 
-  return { state, history, thinking, sendMessage }
+  // Auto-wake after 2 minutes of sleep
+  useEffect(() => {
+    if (state !== 'sleep') return
+    const timer = setTimeout(() => sm.current!.wakeUp(), 2 * 60 * 1000)
+    return () => clearTimeout(timer)
+  }, [state])
+
+  const wakeUp = useCallback(() => sm.current!.wakeUp(), [])
+  const startWalking = useCallback(() => sm.current!.startWalking(), [])
+  const stopWalking = useCallback(() => sm.current!.stopWalking(), [])
+
+  return { state, history, thinking, sendMessage, wakeUp, startWalking, stopWalking }
 }

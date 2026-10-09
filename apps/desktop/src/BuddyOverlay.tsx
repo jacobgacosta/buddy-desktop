@@ -3,15 +3,14 @@ import { invoke } from '@tauri-apps/api/core'
 import { BuddyCanvas } from '@buddy/renderer'
 import { ChatBubble } from './ChatBubble'
 import { useBuddy } from './hooks/useBuddy'
-import { createPhysics, tickPhysics, setWalkTarget, randomEdgeTarget } from './physics'
+import { createPhysics, tickPhysics, setWalkTarget, randomNearbyTarget } from './physics'
 import type { Avatar } from '@buddy/types'
 
 const SPRITE = 120
 const WIN_W = 280
 const WIN_H = 420
-const OFF_X = (WIN_W - SPRITE) / 2   // 80 — avatar centered horizontally
-const OFF_Y = WIN_H - SPRITE           // 300 — avatar at bottom
-const WALK_INTERVAL_MS = 6000
+const OFF_X = (WIN_W - SPRITE) / 2
+const OFF_Y = WIN_H - SPRITE
 
 const DEFAULT_AVATAR: Avatar = {
   id: 'fox',
@@ -24,12 +23,17 @@ const DEFAULT_AVATAR: Avatar = {
   size: 'medium',
 }
 
+function randomWalkDelay() {
+  return 30_000 + Math.random() * 30_000 // 30–60 seconds
+}
+
 export function BuddyOverlay() {
   const [chatOpen, setChatOpen] = useState(false)
 
   const sw = window.screen.width
   const sh = window.screen.height
-  const initPos = { x: sw - SPRITE - 60, y: sh - SPRITE - 80 }
+  // Avatar pos that puts the window in the bottom-right, fully on screen
+  const initPos = { x: sw - WIN_W + OFF_X - 20, y: sh - WIN_H + OFF_Y - 20 }
 
   const physicsRef = useRef(createPhysics(initPos))
   const lastTimeRef = useRef(performance.now())
@@ -38,23 +42,23 @@ export function BuddyOverlay() {
   const lastWinPos = useRef({ x: -9999, y: -9999 })
   const chatOpenRef = useRef(false)
   chatOpenRef.current = chatOpen
-  const walkResumeAt = useRef(0) // timestamp after which autonomous walk resumes
+  const walkResumeAt = useRef(0)
+  const isDraggingRef = useRef(false)
 
-  const { state, history, thinking, sendMessage } = useBuddy(DEFAULT_AVATAR)
+  const { state, history, thinking, sendMessage, wakeUp, startWalking, stopWalking } = useBuddy(DEFAULT_AVATAR)
 
-  // Move window via Rust command (bypasses capabilities system)
+  const stateRef = useRef(state)
+  stateRef.current = state
+
   const moveWindow = useCallback((x: number, y: number) => {
     void invoke('move_window', { x, y })
   }, [])
 
-  // Set initial position and first walk target
+  // Set initial window position and first walk target
   useEffect(() => {
     const { x, y } = initPos
     moveWindow(Math.round(x - OFF_X), Math.round(y - OFF_Y))
-    physicsRef.current = setWalkTarget(
-      physicsRef.current,
-      randomEdgeTarget(sw, sh, SPRITE)
-    )
+    physicsRef.current = setWalkTarget(physicsRef.current, randomNearbyTarget(physicsRef.current.pos))
   }, [])
 
   // Physics loop
@@ -64,7 +68,17 @@ export function BuddyOverlay() {
       lastTimeRef.current = now
 
       if (!isDraggingRef.current) {
-        physicsRef.current = tickPhysics(physicsRef.current, sw, sh, SPRITE, dt)
+        const hadTarget = physicsRef.current.target !== null
+        // When idle, sync pos with actual window position — handles drag, multi-monitor, etc.
+        if (!hadTarget) {
+          physicsRef.current = {
+            ...physicsRef.current,
+            pos: { x: window.screenX + OFF_X, y: window.screenY + OFF_Y },
+          }
+        }
+        physicsRef.current = tickPhysics(physicsRef.current, dt)
+        const arrivedNow = hadTarget && physicsRef.current.target === null
+        if (arrivedNow) stopWalking()
       }
 
       if (!chatOpenRef.current && !isDraggingRef.current) {
@@ -83,7 +97,7 @@ export function BuddyOverlay() {
       } else {
         sleepTimerRef.current = window.setTimeout(() => {
           rafRef.current = requestAnimationFrame(loop)
-        }, 250) // 4fps when idle
+        }, 250)
       }
     }
     rafRef.current = requestAnimationFrame(loop)
@@ -91,24 +105,22 @@ export function BuddyOverlay() {
       cancelAnimationFrame(rafRef.current)
       clearTimeout(sleepTimerRef.current)
     }
-  }, [sw, sh, moveWindow])
+  }, [stopWalking])
 
-  // Random walk when idle
+  // Autonomous walk — every 30s when idle and not recently dragged
   useEffect(() => {
     if (state !== 'idle') return
     const id = setInterval(() => {
-      if (Date.now() < walkResumeAt.current) return
-      physicsRef.current = setWalkTarget(
-        physicsRef.current,
-        randomEdgeTarget(sw, sh, SPRITE)
-      )
-    }, WALK_INTERVAL_MS)
+      if (Date.now() >= walkResumeAt.current) {
+        startWalking()
+        physicsRef.current = setWalkTarget(physicsRef.current, randomNearbyTarget(physicsRef.current.pos))
+      }
+    }, 30_000)
     return () => clearInterval(id)
-  }, [state, sw, sh])
+  }, [state, sw, sh, startWalking])
 
-  // Drag support — only initiate system drag after mouse moves > 5px while held
+  // Drag support
   const mouseDownAt = useRef<{ x: number; y: number } | null>(null)
-  const isDraggingRef = useRef(false)
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     mouseDownAt.current = { x: e.clientX, y: e.clientY }
@@ -118,16 +130,20 @@ export function BuddyOverlay() {
       const dx = me.clientX - mouseDownAt.current.x
       const dy = me.clientY - mouseDownAt.current.y
       if (Math.sqrt(dx * dx + dy * dy) > 5) {
-        // Threshold crossed — start system drag
         window.removeEventListener('mousemove', onMove)
         window.removeEventListener('mouseup', onUp)
         mouseDownAt.current = null
         isDraggingRef.current = true
-        void (invoke('start_drag') as Promise<[number, number]>).then(([wx, wy]) => {
+        void invoke('start_drag').then(() => {
+          // window.screenX/Y is in the same logical coordinate space as move_window
+          const wx = window.screenX
+          const wy = window.screenY
           physicsRef.current = createPhysics({ x: wx + OFF_X, y: wy + OFF_Y })
-          walkResumeAt.current = Date.now() + 30_000 // stay put for 30s after drag
+          walkResumeAt.current = Date.now() + 30_000
+          stopWalking()
           isDraggingRef.current = false
         }).catch(() => {
+          stopWalking()
           isDraggingRef.current = false
         })
       }
@@ -136,18 +152,21 @@ export function BuddyOverlay() {
     const onUp = () => {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
-      // mouseDownAt still set → was a click, not a drag
     }
 
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
-  }, [])
+  }, [stopWalking])
 
   const handleClick = useCallback(() => {
-    if (!mouseDownAt.current) return // drag consumed the mousedown
+    if (!mouseDownAt.current) return
     mouseDownAt.current = null
+    if (stateRef.current === 'sleep') {
+      wakeUp()
+      return
+    }
     setChatOpen(o => !o)
-  }, [])
+  }, [wakeUp])
 
   return (
     <div style={{ width: WIN_W, height: WIN_H, position: 'relative' }}>

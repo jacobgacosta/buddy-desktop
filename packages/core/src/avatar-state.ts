@@ -27,7 +27,11 @@ export class AvatarStateMachine {
   }
 
   setSleep() {
-    this.transition('sleep')
+    if (this._state === 'idle') this.transition('sleep')
+  }
+
+  wakeUp() {
+    if (this._state === 'sleep') this.transition('idle')
   }
 
   startWalking() {

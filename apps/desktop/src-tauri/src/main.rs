@@ -13,13 +13,8 @@ fn move_window(window: tauri::Window, x: f64, y: f64) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn start_drag(window: tauri::Window) -> Result<(f64, f64), String> {
-    // start_dragging blocks on Windows until the drag completes
-    window.start_dragging().map_err(|e| e.to_string())?;
-    // Return the new logical position after drag
-    let scale = window.scale_factor().map_err(|e| e.to_string())?;
-    let pos = window.outer_position().map_err(|e| e.to_string())?;
-    Ok((pos.x as f64 / scale, pos.y as f64 / scale))
+fn start_drag(window: tauri::Window) -> Result<(), String> {
+    window.start_dragging().map_err(|e| e.to_string())
 }
 
 fn main() {
