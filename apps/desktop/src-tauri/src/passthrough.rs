@@ -1,10 +1,9 @@
 use tauri::{command, AppHandle, Manager};
 
-/// Activa/desactiva el passthrough de mouse.
-/// Llamado desde JS cuando el cursor entra/sale del sprite.
 #[command]
-pub fn set_ignore_cursor(app: AppHandle, ignore: bool) {
-    if let Some(window) = app.get_webview_window("buddy") {
-        let _ = window.set_ignore_cursor_events(ignore);
-    }
+pub fn set_ignore_cursor(app: AppHandle, ignore: bool) -> Result<(), String> {
+    app.get_webview_window("buddy")
+        .ok_or_else(|| "Window 'buddy' not found".to_string())?
+        .set_ignore_cursor_events(ignore)
+        .map_err(|e| e.to_string())
 }
