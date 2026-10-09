@@ -38,31 +38,35 @@ pub async fn chat(
         content: req.message.clone(),
     });
 
-    let ollama_req = serde_json::json!({
-        "model": std::env::var("OLLAMA_MODEL").unwrap_or_else(|_| "llama3.2:3b".into()),
+    let model = std::env::var("LLM_MODEL")
+        .or_else(|_| std::env::var("OLLAMA_MODEL"))
+        .unwrap_or_else(|_| "llama3.2:3b".into());
+
+    let llm_req = serde_json::json!({
+        "model": model,
         "messages": messages,
         "stream": false
     });
 
     let resp = state.http
-        .post(format!("{}/api/chat", state.ollama_url))
-        .json(&ollama_req)
+        .post(format!("{}/v1/chat/completions", state.ollama_url))
+        .json(&llm_req)
         .send()
         .await
         .map_err(|_| StatusCode::BAD_GATEWAY)?;
 
     if !resp.status().is_success() {
-        tracing::warn!("Ollama returned status: {}", resp.status());
+        tracing::warn!("LLM backend returned status: {}", resp.status());
         return Err(StatusCode::BAD_GATEWAY);
     }
 
     let body: serde_json::Value = resp.json().await
         .map_err(|_| StatusCode::BAD_GATEWAY)?;
 
-    let content = body["message"]["content"]
+    let content = body["choices"][0]["message"]["content"]
         .as_str()
         .ok_or_else(|| {
-            tracing::error!("Unexpected Ollama response structure: {:?}", body);
+            tracing::error!("Unexpected LLM response structure: {:?}", body);
             StatusCode::BAD_GATEWAY
         })?
         .to_string();
