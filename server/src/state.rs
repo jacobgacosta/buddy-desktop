@@ -2,6 +2,7 @@
 pub struct AppState {
     pub ollama_url: String,
     pub avatars_dir: String,
+    pub http: reqwest::Client,
 }
 
 impl AppState {
@@ -11,6 +12,7 @@ impl AppState {
                 .unwrap_or_else(|_| "http://localhost:11434".into()),
             avatars_dir: std::env::var("AVATARS_DIR")
                 .unwrap_or_else(|_| "avatars".into()),
+            http: reqwest::Client::new(),
         }
     }
 }

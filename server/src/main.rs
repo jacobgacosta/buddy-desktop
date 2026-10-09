@@ -28,6 +28,7 @@ async fn main() {
     let app = Router::new()
         .route("/health", get(routes::health::health))
         .route("/avatars", get(routes::avatars::list_avatars))
+        .route("/chat", post(routes::chat::chat))
         .layer(cors)
         .with_state(state);
 
