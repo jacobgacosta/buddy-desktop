@@ -51,5 +51,6 @@ mod tests {
         let body: Vec<Value> = response.json();
         assert!(!body.is_empty());
         assert_eq!(body[0]["id"], "test");
+        fs::remove_dir_all(&dir).unwrap_or_default();
     }
 }
