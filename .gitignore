@@ -4,3 +4,4 @@ dist/
 target/
 *.riv
 !server/assets/placeholder.riv
+apps/desktop/src-tauri/gen/
