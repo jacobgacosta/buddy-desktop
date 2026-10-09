@@ -1,12 +1,15 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { LlmClient } from '../llm-client'
 import type { Message } from '@buddy/types'
 
 const mockFetch = vi.fn()
-global.fetch = mockFetch
 
 describe('LlmClient', () => {
-  beforeEach(() => mockFetch.mockReset())
+  beforeEach(() => {
+    vi.stubGlobal('fetch', mockFetch)
+    mockFetch.mockReset()
+  })
+  afterEach(() => vi.unstubAllGlobals())
 
   it('posts to /chat with correct payload', async () => {
     mockFetch.mockResolvedValueOnce({

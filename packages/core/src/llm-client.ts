@@ -25,6 +25,7 @@ export class LlmClient {
     })
 
     if (!resp.ok) throw new Error(`LLM request failed: ${resp.status}`)
-    return resp.json()
+    const raw = await resp.json() as { content: string; avatar_id: string }
+    return { content: raw.content, avatarId: raw.avatar_id }
   }
 }
