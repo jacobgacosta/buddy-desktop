@@ -17,6 +17,7 @@ export function ChatBubble({ history, thinking, onSend, onClose }: Props) {
   }, [history])
 
   const handleSend = () => {
+    if (thinking) return
     const text = input.trim()
     if (!text) return
     onSend(text)
@@ -60,16 +61,20 @@ export function ChatBubble({ history, thinking, onSend, onClose }: Props) {
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleSend()}
           placeholder="Escríbele a Buddy..."
+          disabled={thinking}
           style={{
             flex: 1, background: '#1f2937', border: 'none', borderRadius: 8,
             padding: '6px 10px', color: '#fff', fontSize: 13, outline: 'none',
+            opacity: thinking ? 0.5 : 1,
           }}
         />
         <button
           onClick={handleSend}
+          disabled={thinking}
           style={{
             background: '#4338ca', border: 'none', borderRadius: 8,
-            padding: '6px 10px', color: '#fff', cursor: 'pointer',
+            padding: '6px 10px', color: '#fff', cursor: thinking ? 'default' : 'pointer',
+            opacity: thinking ? 0.5 : 1,
           }}
         >▶</button>
       </div>
