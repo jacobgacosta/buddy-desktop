@@ -43,5 +43,5 @@ fn binary_name() -> &'static str { "buddy-server-aarch64-apple-darwin" }
 fn binary_name() -> &'static str { "buddy-server-x86_64-apple-darwin" }
 #[cfg(all(target_arch = "x86_64", target_os = "linux"))]
 fn binary_name() -> &'static str { "buddy-server-x86_64-unknown-linux-gnu" }
-#[cfg(target_arch = "aarch64")]
+#[cfg(all(target_arch = "aarch64", target_os = "linux"))]
 fn binary_name() -> &'static str { "buddy-server-aarch64-unknown-linux-gnu" }
