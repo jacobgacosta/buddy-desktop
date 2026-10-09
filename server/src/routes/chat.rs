@@ -51,12 +51,20 @@ pub async fn chat(
         .await
         .map_err(|_| StatusCode::BAD_GATEWAY)?;
 
+    if !resp.status().is_success() {
+        tracing::warn!("Ollama returned status: {}", resp.status());
+        return Err(StatusCode::BAD_GATEWAY);
+    }
+
     let body: serde_json::Value = resp.json().await
         .map_err(|_| StatusCode::BAD_GATEWAY)?;
 
     let content = body["message"]["content"]
         .as_str()
-        .unwrap_or("...")
+        .ok_or_else(|| {
+            tracing::error!("Unexpected Ollama response structure: {:?}", body);
+            StatusCode::BAD_GATEWAY
+        })?
         .to_string();
 
     Ok(Json(ChatResponse {
