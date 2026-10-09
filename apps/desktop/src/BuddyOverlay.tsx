@@ -34,6 +34,7 @@ export function BuddyOverlay() {
   const physicsRef = useRef(createPhysics(initPos))
   const lastTimeRef = useRef(performance.now())
   const rafRef = useRef(0)
+  const sleepTimerRef = useRef(0)
   const lastWinPos = useRef({ x: -9999, y: -9999 })
   const chatOpenRef = useRef(false)
   chatOpenRef.current = chatOpen
@@ -76,10 +77,20 @@ export function BuddyOverlay() {
         }
       }
 
-      rafRef.current = requestAnimationFrame(loop)
+      const active = physicsRef.current.target !== null || isDraggingRef.current
+      if (active) {
+        rafRef.current = requestAnimationFrame(loop)
+      } else {
+        sleepTimerRef.current = window.setTimeout(() => {
+          rafRef.current = requestAnimationFrame(loop)
+        }, 250) // 4fps when idle
+      }
     }
     rafRef.current = requestAnimationFrame(loop)
-    return () => cancelAnimationFrame(rafRef.current)
+    return () => {
+      cancelAnimationFrame(rafRef.current)
+      clearTimeout(sleepTimerRef.current)
+    }
   }, [sw, sh, moveWindow])
 
   // Random walk when idle
