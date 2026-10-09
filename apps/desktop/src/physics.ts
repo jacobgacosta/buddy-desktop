@@ -50,7 +50,7 @@ export function tickPhysics(
   return {
     pos: { x: newX, y: newY },
     vel: {
-      x: newX === rawX ? vel.x : 0,
+      x: rawX >= 0 && rawX <= screenW - spriteSize ? vel.x : 0,
       y: newVelY,
     },
     target,
