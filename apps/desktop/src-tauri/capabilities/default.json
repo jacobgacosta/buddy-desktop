@@ -1,0 +1,8 @@
+{
+  "identifier": "default",
+  "description": "Default permissions for Buddy",
+  "windows": ["buddy"],
+  "permissions": [
+    "core:default"
+  ]
+}

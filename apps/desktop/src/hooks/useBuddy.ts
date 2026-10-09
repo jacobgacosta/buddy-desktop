@@ -56,7 +56,14 @@ export function useBuddy(avatar: Avatar) {
       if (talkTimerRef.current) clearTimeout(talkTimerRef.current)
       talkTimerRef.current = setTimeout(() => sm.current!.finishTalking(), 4000)
     } catch (err) {
-      console.error(err)
+      const errMsg: Message = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: `⚠️ Error: ${err instanceof Error ? err.message : String(err)}`,
+        avatarId: avatar.id,
+        timestamp: Date.now(),
+      }
+      setHistory(h => [...h, errMsg])
       sm.current!.finishTalking()
     } finally {
       setThinking(false)

@@ -41,20 +41,8 @@ export function tickPhysics(
     }
   }
 
-  const newVelY = Math.min(vel.y + GRAVITY * safeDt, MAX_VEL_Y)
-  const rawX = pos.x + vel.x * safeDt
-  const rawY = pos.y + newVelY * safeDt
-  const newX = Math.max(0, Math.min(screenW - spriteSize, rawX))
-  const newY = Math.max(0, Math.min(screenH - spriteSize, rawY))
-
-  return {
-    pos: { x: newX, y: newY },
-    vel: {
-      x: rawX >= 0 && rawX <= screenW - spriteSize ? vel.x : 0,
-      y: newVelY,
-    },
-    target,
-  }
+  // No target → stay still
+  return { pos, vel: { x: 0, y: 0 }, target: null }
 }
 
 export function setWalkTarget(state: PhysicsState, target: Position): PhysicsState {

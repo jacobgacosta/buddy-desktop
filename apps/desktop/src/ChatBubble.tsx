@@ -26,17 +26,19 @@ export function ChatBubble({ history, thinking, onSend, onClose }: Props) {
 
   return (
     <div style={{
-      position: 'fixed', bottom: 220, right: 20,
-      width: 280, background: 'rgba(20,20,30,0.95)',
+      width: '100%', height: '100%',
+      background: 'rgba(20,20,30,0.95)',
       borderRadius: 16, padding: 12, color: '#fff',
       fontFamily: 'system-ui', fontSize: 13,
       boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+      display: 'flex', flexDirection: 'column',
+      boxSizing: 'border-box',
     }}>
       <button
         onClick={onClose}
-        style={{ float: 'right', background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 16 }}
+        style={{ alignSelf: 'flex-end', background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}
       >×</button>
-      <div style={{ height: 160, overflowY: 'auto', marginBottom: 8 }}>
+      <div style={{ flex: 1, overflowY: 'auto', marginBottom: 8 }}>
         {history.map(m => (
           <div key={m.id} style={{
             textAlign: m.role === 'user' ? 'right' : 'left',
