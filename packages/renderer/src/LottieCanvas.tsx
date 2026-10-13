@@ -31,11 +31,10 @@ export function LottieCanvas({ character, state, size, onStateComplete }: Props)
       .then(r => r.ok ? r.json() : Promise.reject(new Error(`${r.status}`)))
       .then(data => setClipData(data))
       .catch(() => {
-        // try idle fallback
         const idleUrl = character.clips?.['idle']
         if (idleUrl && idleUrl !== url) {
           fetch(idleUrl)
-            .then(r => r.json())
+            .then(r => r.ok ? r.json() : Promise.reject(new Error(`${r.status}`)))
             .then(data => setClipData(data))
             .catch(() => setLoadError(true))
         } else {
@@ -62,7 +61,7 @@ export function LottieCanvas({ character, state, size, onStateComplete }: Props)
     <Lottie
       animationData={clipData}
       loop={LOOPING_STATES.includes(state)}
-      onComplete={state === 'react_happy' ? onStateComplete : undefined}
+      onComplete={state === 'react_happy' && onStateComplete ? onStateComplete : undefined}
       style={{ width: size, height: size }}
     />
   )
