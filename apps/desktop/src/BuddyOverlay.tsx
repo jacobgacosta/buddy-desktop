@@ -142,7 +142,9 @@ export function BuddyOverlay() {
   const scheduleNextWalk = useCallback((delay: number) => {
     clearTimeout(walkTimerRef.current)
     walkTimerRef.current = window.setTimeout(() => {
-      if (isDraggingRef.current || stateRef.current === 'sleep' || anchoredRef.current) return
+      if (isDraggingRef.current || anchoredRef.current) return
+      if (stateRef.current === 'sleep') return
+      if (stateRef.current !== 'idle') { scheduleNextWalk(2_000); return }
       startWalking()
       const scale = Math.max(0.75, Math.min(2, monitorRef.current.w / 1920))
       physicsRef.current = setWalkTarget(
