@@ -24,7 +24,8 @@ function clamp(v: number, lo: number, hi: number) {
 
 export function tickPhysics(
   state: PhysicsState,
-  dt: number
+  dt: number,
+  speed = WALK_SPEED
 ): PhysicsState {
   const safeDt = Math.min(dt, 0.05)
   const { pos, target } = state
@@ -38,10 +39,10 @@ export function tickPhysics(
     }
     return {
       pos: {
-        x: pos.x + (dx / dist) * WALK_SPEED * safeDt,
-        y: pos.y + (dy / dist) * WALK_SPEED * safeDt,
+        x: pos.x + (dx / dist) * speed * safeDt,
+        y: pos.y + (dy / dist) * speed * safeDt,
       },
-      vel: { x: (dx / dist) * WALK_SPEED, y: (dy / dist) * WALK_SPEED },
+      vel: { x: (dx / dist) * speed, y: (dy / dist) * speed },
       target,
     }
   }

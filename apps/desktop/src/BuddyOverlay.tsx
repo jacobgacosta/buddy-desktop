@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { BuddyCanvas } from '@buddy/renderer'
 import { ChatBubble } from './ChatBubble'
 import { useBuddy } from './hooks/useBuddy'
@@ -30,15 +31,29 @@ const DEFAULT_AVATAR: Avatar = {
 
 type MonitorBounds = { x: number; y: number; w: number; h: number }
 
+const POS_KEY = 'buddy-pos'
+function loadSavedWinPos(): { x: number; y: number } | null {
+  try {
+    const raw = localStorage.getItem(POS_KEY)
+    if (!raw) return null
+    const { x, y } = JSON.parse(raw)
+    if (typeof x === 'number' && typeof y === 'number') return { x, y }
+  } catch {}
+  return null
+}
+function saveWinPos(x: number, y: number) {
+  try { localStorage.setItem(POS_KEY, JSON.stringify({ x, y })) } catch {}
+}
+
 // Returns a random walk destination that keeps the entire window on-screen.
 // pos is avatar position in screen coordinates (not window position).
-function clampedWalkTarget(pos: Position, mon: MonitorBounds): Position {
+function clampedWalkTarget(pos: Position, mon: MonitorBounds, radius = 350): Position {
   const minX = mon.x + OFF_X
   const maxX = mon.x + mon.w - (WIN_W - OFF_X)
   const minY = mon.y + OFF_Y
   const maxY = mon.y + mon.h - WIN_H
   for (let i = 0; i < 12; i++) {
-    const t = randomNearbyTarget(pos)
+    const t = randomNearbyTarget(pos, radius)
     const cx = Math.max(minX, Math.min(maxX, t.x))
     const cy = Math.max(minY, Math.min(maxY, t.y))
     if ((cx - pos.x) ** 2 + (cy - pos.y) ** 2 >= 120 ** 2) return { x: cx, y: cy }
@@ -57,7 +72,11 @@ export function BuddyOverlay() {
   // pos.(x,y) = avatar screen coords; window pos = (pos.x - OFF_X, pos.y - OFF_Y).
   const sw = window.screen.availWidth
   const sh = window.screen.availHeight
-  const initPos = { x: sw - WIN_W + OFF_X - 20, y: sh - WIN_H - 20 }
+  const savedWin = loadSavedWinPos()
+  // initPos is the avatar center in screen coords. If saved, restore from saved window top-left.
+  const initPos = savedWin
+    ? { x: savedWin.x + OFF_X, y: savedWin.y + OFF_Y }
+    : { x: sw - WIN_W + OFF_X - 20, y: sh - WIN_H - 20 }
 
   const physicsRef   = useRef(createPhysics(initPos))
   const lastTimeRef  = useRef(performance.now())
@@ -92,9 +111,10 @@ export function BuddyOverlay() {
     walkTimerRef.current = window.setTimeout(() => {
       if (isDraggingRef.current || stateRef.current === 'sleep' || anchoredRef.current) return
       startWalking()
+      const scale = Math.max(0.75, Math.min(2, monitorRef.current.w / 1920))
       physicsRef.current = setWalkTarget(
         physicsRef.current,
-        clampedWalkTarget(physicsRef.current.pos, monitorRef.current),
+        clampedWalkTarget(physicsRef.current.pos, monitorRef.current, Math.round(350 * scale)),
       )
     }, delay)
   }, [startWalking])
@@ -114,6 +134,17 @@ export function BuddyOverlay() {
     if (prev === 'sleep' && state === 'idle') scheduleNextWalk(2_000)
   }, [state, scheduleNextWalk])
 
+  // Refresh monitor bounds when window is moved by OS (snap, keyboard, multi-monitor drag)
+  useEffect(() => {
+    let unlisten: (() => void) | undefined
+    let debounce = 0
+    getCurrentWindow().onMoved(() => {
+      clearTimeout(debounce)
+      debounce = window.setTimeout(refreshMonitor, 500)
+    }).then(fn => { unlisten = fn })
+    return () => { clearTimeout(debounce); unlisten?.() }
+  }, [refreshMonitor])
+
   // Sync anchor state from tray icon menu; resume walk cycle on unanchor
   useEffect(() => {
     let unlisten: (() => void) | undefined
@@ -132,9 +163,12 @@ export function BuddyOverlay() {
 
       if (!isDraggingRef.current) {
         const hadTarget = physicsRef.current.target !== null
-        physicsRef.current = tickPhysics(physicsRef.current, dt)
+        const scale = Math.max(0.75, Math.min(2, monitorRef.current.w / 1920))
+        physicsRef.current = tickPhysics(physicsRef.current, dt, Math.round(80 * scale))
         if (hadTarget && physicsRef.current.target === null) {
           stopWalking()
+          const { x, y } = physicsRef.current.pos
+          saveWinPos(Math.round(x - OFF_X), Math.round(y - OFF_Y))
           scheduleNextWalk(Math.random() * 5_000 + 3_000)
         }
       }
@@ -200,6 +234,7 @@ export function BuddyOverlay() {
       const finalWy = startWinY + (me.screenY - startMouseY)
       physicsRef.current = createPhysics({ x: finalWx + OFF_X, y: finalWy + OFF_Y })
       lastWinPos.current = { x: finalWx, y: finalWy }
+      saveWinPos(finalWx, finalWy)
       stopWalking()
       isDraggingRef.current = false
       refreshMonitor()
