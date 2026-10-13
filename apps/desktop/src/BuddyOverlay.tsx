@@ -114,14 +114,15 @@ export function BuddyOverlay() {
     if (prev === 'sleep' && state === 'idle') scheduleNextWalk(2_000)
   }, [state, scheduleNextWalk])
 
-  // Sync anchor state from tray icon menu
+  // Sync anchor state from tray icon menu; resume walk cycle on unanchor
   useEffect(() => {
     let unlisten: (() => void) | undefined
     listen<boolean>('anchor-changed', ({ payload }) => {
       anchoredRef.current = payload
+      if (!payload) scheduleNextWalk(2_000)
     }).then(fn => { unlisten = fn })
     return () => { unlisten?.() }
-  }, [])
+  }, [scheduleNextWalk])
 
   // Physics loop — runs via RAF when moving, polls every 250 ms when idle.
   useEffect(() => {
