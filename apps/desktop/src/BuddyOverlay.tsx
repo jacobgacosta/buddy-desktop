@@ -2,11 +2,13 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { BuddyCanvas } from '@buddy/renderer'
+import { CharacterRenderer } from '@buddy/renderer'
 import { ChatBubble } from './ChatBubble'
 import { ContextMenu } from './ContextMenu'
 import { SettingsPanel } from './SettingsPanel'
+import { CharacterPicker } from './CharacterPicker'
 import { useBuddy } from './hooks/useBuddy'
+import { CHARACTERS, findCharacter } from './characters/registry'
 import { createPhysics, tickPhysics, setWalkTarget, randomNearbyTarget } from './physics'
 import type { Avatar, Message } from '@buddy/types'
 import type { Position } from './physics'
@@ -37,6 +39,16 @@ const POS_KEY     = 'buddy-pos'
 const CONFIG_KEY  = 'buddy-avatar-config'
 const HISTORY_KEY = 'buddy-history'
 const MAX_HISTORY = 30
+
+const CHAR_KEY = 'buddy-character'
+
+function loadSavedCharacter() {
+  try {
+    const id = localStorage.getItem(CHAR_KEY)
+    if (id) return findCharacter(id)
+  } catch {}
+  return null
+}
 
 function loadConfig(): { name: string; personality: string } | null {
   try {
@@ -94,6 +106,10 @@ export function BuddyOverlay() {
   const [chatOpen, setChatOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [isAnchored, setIsAnchored] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [currentCharacter, setCurrentCharacter] = useState(
+    () => loadSavedCharacter() ?? CHARACTERS[0]
+  )
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
 
   // Avatar screen position on start: 20px from right/bottom edge.
@@ -128,7 +144,7 @@ export function BuddyOverlay() {
   }, [])
 
   const [initialHistory] = useState(loadHistory)
-  const { state, history, thinking, sendMessage, wakeUp, startWalking, stopWalking } = useBuddy(avatar, initialHistory)
+  const { state, history, thinking, sendMessage, wakeUp, startWalking, stopWalking, stopReacting } = useBuddy(avatar, initialHistory)
   const stateRef = useRef(state)
   stateRef.current = state
 
@@ -301,10 +317,19 @@ export function BuddyOverlay() {
     if (!next) scheduleNextWalk(2_000)
   }, [scheduleNextWalk])
 
+  const handleSelectCharacter = useCallback((char: typeof CHARACTERS[0]) => {
+    setCurrentCharacter(char)
+    setAvatarConfig({ name: char.name, personality: char.personality })
+    try {
+      localStorage.setItem(CHAR_KEY, char.id)
+      localStorage.setItem(CONFIG_KEY, JSON.stringify({ name: char.name, personality: char.personality }))
+    } catch {}
+  }, [])
+
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    const MENU_W = 152, MENU_H = 90
+    const MENU_W = 152, MENU_H = 130
     const x = Math.min(e.clientX, WIN_W - MENU_W)
     const y = Math.min(e.clientY, WIN_H - MENU_H)
     setContextMenu({ x, y })
@@ -343,13 +368,24 @@ export function BuddyOverlay() {
           />
         </div>
       )}
+      {pickerOpen && (
+        <div style={panelSlot}>
+          <CharacterPicker
+            characters={CHARACTERS}
+            currentId={currentCharacter.id}
+            onSelect={handleSelectCharacter}
+            onClose={() => setPickerOpen(false)}
+          />
+        </div>
+      )}
       {contextMenu && (
         <ContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
           isAnchored={isAnchored}
           onToggleAnchor={handleToggleAnchor}
-          onOpenSettings={() => { setSettingsOpen(true); setChatOpen(false) }}
+          onOpenSettings={() => { setSettingsOpen(true); setChatOpen(false); setPickerOpen(false) }}
+          onOpenPicker={() => { setPickerOpen(true); setChatOpen(false); setSettingsOpen(false) }}
           onClose={() => setContextMenu(null)}
         />
       )}
@@ -365,11 +401,11 @@ export function BuddyOverlay() {
         onClick={handleClick}
         onContextMenu={handleContextMenu}
       >
-        <BuddyCanvas
-          riveFile={DEFAULT_AVATAR.riveFile}
-          stateMachine={DEFAULT_AVATAR.stateMachine}
+        <CharacterRenderer
+          character={currentCharacter}
           state={state}
           size={SPRITE}
+          onStateComplete={stopReacting}
         />
       </div>
     </div>
