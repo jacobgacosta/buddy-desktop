@@ -6,6 +6,7 @@ interface Props {
   isAnchored: boolean
   onToggleAnchor: () => void
   onOpenSettings: () => void
+  onOpenPicker: () => void
   onClose: () => void
 }
 
@@ -15,7 +16,7 @@ const item: React.CSSProperties = {
   textAlign: 'left', fontSize: 13, fontFamily: 'system-ui',
 }
 
-export function ContextMenu({ x, y, isAnchored, onToggleAnchor, onOpenSettings, onClose }: Props) {
+export function ContextMenu({ x, y, isAnchored, onToggleAnchor, onOpenSettings, onOpenPicker, onClose }: Props) {
   useEffect(() => {
     const close = () => onClose()
     window.addEventListener('mousedown', close)
@@ -34,6 +35,15 @@ export function ContextMenu({ x, y, isAnchored, onToggleAnchor, onOpenSettings, 
         fontFamily: 'system-ui',
       }}
     >
+      <button
+        style={item}
+        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
+        onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+        onClick={() => { onOpenPicker(); onClose() }}
+      >
+        Cambiar personaje…
+      </button>
+      <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '3px 0' }} />
       <button
         style={item}
         onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
