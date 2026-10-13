@@ -1,5 +1,3 @@
-import { useEffect } from 'react'
-
 interface Props {
   x: number
   y: number
@@ -10,57 +8,58 @@ interface Props {
   onClose: () => void
 }
 
-const item: React.CSSProperties = {
+const itemStyle: React.CSSProperties = {
   width: '100%', background: 'none', border: 'none',
   color: '#e5e7eb', cursor: 'pointer', padding: '7px 14px',
-  textAlign: 'left', fontSize: 13, fontFamily: 'system-ui',
+  textAlign: 'left', fontSize: 12, fontFamily: 'system-ui',
 }
 
 export function ContextMenu({ x, y, isAnchored, onToggleAnchor, onOpenSettings, onOpenPicker, onClose }: Props) {
-  useEffect(() => {
-    const close = () => onClose()
-    window.addEventListener('mousedown', close)
-    return () => window.removeEventListener('mousedown', close)
-  }, [onClose])
-
   return (
-    <div
-      onMouseDown={e => e.stopPropagation()}
-      style={{
-        position: 'absolute', left: x, top: y, zIndex: 100,
-        background: 'rgba(15,15,25,0.97)',
-        border: '1px solid rgba(255,255,255,0.1)',
-        borderRadius: 8, padding: '4px 0', minWidth: 148,
-        boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
-        fontFamily: 'system-ui',
-      }}
-    >
-      <button
-        style={item}
-        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
-        onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-        onClick={() => { onOpenPicker(); onClose() }}
+    <>
+      {/* backdrop — click anywhere outside menu to close */}
+      <div
+        style={{ position: 'fixed', inset: 0, zIndex: 998 }}
+        onMouseDown={onClose}
+      />
+      <div
+        onMouseDown={e => e.stopPropagation()}
+        style={{
+          position: 'absolute', left: x, top: y, zIndex: 999,
+          background: 'rgba(12,12,22,0.97)',
+          border: '1px solid rgba(255,255,255,0.09)',
+          borderRadius: 10, padding: '4px 0', minWidth: 152,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+          fontFamily: 'system-ui',
+        }}
       >
-        Cambiar personaje…
-      </button>
-      <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '3px 0' }} />
-      <button
-        style={item}
-        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
-        onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-        onClick={() => { onToggleAnchor(); onClose() }}
-      >
-        {isAnchored ? 'Desanclar' : 'Anclar'}
-      </button>
-      <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '3px 0' }} />
-      <button
-        style={item}
-        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
-        onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-        onClick={() => { onOpenSettings(); onClose() }}
-      >
-        Personalidad…
-      </button>
-    </div>
+        <button
+          style={itemStyle}
+          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+          onClick={() => { onOpenPicker(); onClose() }}
+        >
+          Cambiar personaje…
+        </button>
+        <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '3px 0' }} />
+        <button
+          style={itemStyle}
+          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+          onClick={() => { onToggleAnchor(); onClose() }}
+        >
+          {isAnchored ? 'Desanclar' : 'Anclar'}
+        </button>
+        <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '3px 0' }} />
+        <button
+          style={itemStyle}
+          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+          onClick={() => { onOpenSettings(); onClose() }}
+        >
+          Personalidad…
+        </button>
+      </div>
+    </>
   )
 }

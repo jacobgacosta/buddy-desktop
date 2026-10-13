@@ -16,9 +16,10 @@ import type { Position } from './physics'
 // Window dimensions and avatar placement within it.
 // Avatar sits at the TOP of the window (OFF_Y = 0) so the window can reach y = 0 on screen.
 // Chat bubble opens below the avatar.
-const SPRITE = 120
-const WIN_W = 280
-const WIN_H = 420
+const SPRITE = 200
+const WIN_W = 260
+const WIN_H = 480
+const PANEL_TOP = 168                  // where chat/menus start (independent of SPRITE)
 const OFF_X = (WIN_W - SPRITE) / 2   // horizontal centering within window
 const OFF_Y = 0                        // avatar at top of window
 
@@ -40,7 +41,7 @@ const CONFIG_KEY  = 'buddy-avatar-config'
 const HISTORY_KEY = 'buddy-history'
 const MAX_HISTORY = 30
 
-const CHAR_KEY = 'buddy-character'
+const CHAR_KEY = 'buddy-character-v2'
 
 function loadSavedCharacter() {
   try {
@@ -110,6 +111,7 @@ export function BuddyOverlay() {
   const [currentCharacter, setCurrentCharacter] = useState(
     () => loadSavedCharacter() ?? CHARACTERS[0]
   )
+  const [animVersion, setAnimVersion] = useState(0)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
 
   // Avatar screen position on start: 20px from right/bottom edge.
@@ -130,6 +132,8 @@ export function BuddyOverlay() {
   const lastWinPos   = useRef({ x: -9999, y: -9999 })
   const chatOpenRef  = useRef(false)
   chatOpenRef.current = chatOpen
+  const uiBusyRef = useRef(false)
+  uiBusyRef.current = chatOpen || !!contextMenu || settingsOpen || pickerOpen
   const isDraggingRef = useRef(false)
   const anchoredRef   = useRef(false)
   const monitorRef   = useRef<MonitorBounds>({ x: 0, y: 0, w: sw, h: sh })
@@ -164,6 +168,7 @@ export function BuddyOverlay() {
     clearTimeout(walkTimerRef.current)
     walkTimerRef.current = window.setTimeout(() => {
       if (isDraggingRef.current || anchoredRef.current) return
+      if (uiBusyRef.current) { scheduleNextWalk(3_000); return }
       if (stateRef.current === 'sleep') return
       if (stateRef.current !== 'idle') { scheduleNextWalk(2_000); return }
       startWalking()
@@ -266,6 +271,8 @@ export function BuddyOverlay() {
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return
+    // freeze physics immediately so the RAF loop doesn't fight the drag handler
+    physicsRef.current = { ...physicsRef.current, target: null }
     const startMouseX = e.screenX
     const startMouseY = e.screenY
     const startWinX = window.screenX
@@ -302,7 +309,7 @@ export function BuddyOverlay() {
       stopWalking()
       isDraggingRef.current = false
       refreshMonitor()
-      scheduleNextWalk(2_000)
+      scheduleNextWalk(10_000)
     }
 
     window.addEventListener('mousemove', onMove)
@@ -331,7 +338,7 @@ export function BuddyOverlay() {
     e.stopPropagation()
     const MENU_W = 152, MENU_H = 130
     const x = Math.min(e.clientX, WIN_W - MENU_W)
-    const y = Math.min(e.clientY, WIN_H - MENU_H)
+    const y = Math.max(PANEL_TOP, Math.min(e.clientY, WIN_H - MENU_H))
     setContextMenu({ x, y })
   }, [])
 
@@ -339,11 +346,17 @@ export function BuddyOverlay() {
     if (!mouseDownAt.current) return
     mouseDownAt.current = null
     if (stateRef.current === 'sleep') { wakeUp(); return }
-    setChatOpen(o => !o)
-  }, [wakeUp])
+    // resync physics to actual window position on every toggle
+    stopWalking()
+    physicsRef.current = createPhysics({ x: lastWinPos.current.x + OFF_X, y: lastWinPos.current.y + OFF_Y })
+    setChatOpen(o => {
+      if (o) scheduleNextWalk(5_000) // closing chat → resume after 5s
+      return !o
+    })
+  }, [wakeUp, stopWalking, scheduleNextWalk])
 
   const panelSlot: React.CSSProperties = {
-    position: 'absolute', top: SPRITE + 8, left: 8, right: 8, bottom: 8, overflow: 'hidden',
+    position: 'absolute', top: PANEL_TOP, left: 6, right: 6, bottom: 6,
   }
 
   return (
@@ -374,6 +387,7 @@ export function BuddyOverlay() {
             characters={CHARACTERS}
             currentId={currentCharacter.id}
             onSelect={handleSelectCharacter}
+            onAnimChange={() => setAnimVersion(v => v + 1)}
             onClose={() => setPickerOpen(false)}
           />
         </div>
@@ -386,7 +400,7 @@ export function BuddyOverlay() {
           onToggleAnchor={handleToggleAnchor}
           onOpenSettings={() => { setSettingsOpen(true); setChatOpen(false); setPickerOpen(false) }}
           onOpenPicker={() => { setPickerOpen(true); setChatOpen(false); setSettingsOpen(false) }}
-          onClose={() => setContextMenu(null)}
+          onClose={() => { setContextMenu(null); scheduleNextWalk(5_000) }}
         />
       )}
       <div
@@ -394,6 +408,7 @@ export function BuddyOverlay() {
           position: 'absolute',
           top: 0, left: OFF_X,
           width: SPRITE, height: SPRITE,
+          zIndex: 10,
           cursor: 'grab',
           userSelect: 'none',
         }}
@@ -402,6 +417,7 @@ export function BuddyOverlay() {
         onContextMenu={handleContextMenu}
       >
         <CharacterRenderer
+          key={`${currentCharacter.id}-${animVersion}`}
           character={currentCharacter}
           state={state}
           size={SPRITE}
