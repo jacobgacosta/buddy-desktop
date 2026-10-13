@@ -87,6 +87,7 @@ export function useBuddy(avatar: Avatar, initialHistory: Message[] = []) {
   const wakeUp = useCallback(() => sm.current!.wakeUp(), [])
   const startWalking = useCallback(() => sm.current!.startWalking(), [])
   const stopWalking = useCallback(() => sm.current!.stopWalking(), [])
+  const stopReacting = useCallback(() => sm.current!.finishReacting(), [])
 
-  return { state, history, thinking, sendMessage, wakeUp, startWalking, stopWalking }
+  return { state, history, thinking, sendMessage, wakeUp, startWalking, stopWalking, stopReacting }
 }
