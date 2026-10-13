@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Component } from 'react'
+import type { ReactNode, ErrorInfo } from 'react'
 import Lottie from 'lottie-react'
 import type { AvatarState, CharacterManifest } from '@buddy/types'
 
@@ -7,6 +8,26 @@ interface Props {
   state: AvatarState
   size: number
   onStateComplete?: () => void
+}
+
+class LottieErrorBoundary extends Component<{ size: number; emoji: string; children: ReactNode }, { hasError: boolean }> {
+  state = { hasError: false }
+  static getDerivedStateFromError() { return { hasError: true } }
+  componentDidCatch(_: Error, __: ErrorInfo) {}
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          width: this.props.size, height: this.props.size,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: this.props.size * 0.75, userSelect: 'none',
+        }}>
+          {this.props.emoji}
+        </div>
+      )
+    }
+    return this.props.children
+  }
 }
 
 const FALLBACK_EMOJI: Record<AvatarState, string> = {
@@ -58,11 +79,13 @@ export function LottieCanvas({ character, state, size, onStateComplete }: Props)
   if (!clipData) return <div style={{ width: size, height: size }} />
 
   return (
-    <Lottie
-      animationData={clipData}
-      loop={LOOPING_STATES.includes(state)}
-      onComplete={state === 'react_happy' && onStateComplete ? onStateComplete : undefined}
-      style={{ width: size, height: size }}
-    />
+    <LottieErrorBoundary size={size} emoji={FALLBACK_EMOJI[state]}>
+      <Lottie
+        animationData={clipData}
+        loop={LOOPING_STATES.includes(state)}
+        onComplete={state === 'react_happy' && onStateComplete ? onStateComplete : undefined}
+        style={{ width: size, height: size }}
+      />
+    </LottieErrorBoundary>
   )
 }
