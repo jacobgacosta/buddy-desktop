@@ -336,9 +336,9 @@ export function BuddyOverlay() {
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    const MENU_W = 152, MENU_H = 130
-    const x = Math.min(e.clientX, WIN_W - MENU_W)
-    const y = Math.max(PANEL_TOP, Math.min(e.clientY, WIN_H - MENU_H))
+    const MENU_W = 170, MENU_H = 120
+    const x = Math.min(e.clientX, WIN_W - MENU_W - 4)
+    const y = Math.min(e.clientY, WIN_H - MENU_H - 4)
     setContextMenu({ x, y })
   }, [])
 

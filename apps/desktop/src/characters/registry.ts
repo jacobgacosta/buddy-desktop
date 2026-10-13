@@ -35,6 +35,13 @@ export const CHARACTERS: CharacterManifest[] = [
       sleep:       'sleep',
     },
   },
+  {
+    id: 'aurora',
+    name: 'Aurora',
+    type: 'canvas',
+    personality: 'Eres Aurora, una IA etérea e intuitiva. Responde en español, máximo 2-3 oraciones.',
+    palette: ['#00f2fe', '#7b5fff'],
+  },
 ]
 
 export function findCharacter(id: string): CharacterManifest {

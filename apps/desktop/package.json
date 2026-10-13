@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "tauri dev",
+    "copy-sidecar": "node -e \"const fs=require('fs'),p='src-tauri';['gnu','msvc'].forEach(t=>{const s=`${p}/binaries/buddy-server-x86_64-pc-windows-${t}.exe`,d=`${p}/target/debug/buddy-server-x86_64-pc-windows-${t}.exe`;try{fs.copyFileSync(s,d)}catch{}})\"",
+    "dev": "pnpm copy-sidecar && tauri dev",
     "vite": "vite",
     "build": "tauri build",
     "typecheck": "tsc --noEmit"
@@ -12,6 +13,7 @@
     "@buddy/core": "workspace:*",
     "@buddy/renderer": "workspace:*",
     "@buddy/types": "workspace:*",
+    "@rive-app/react-canvas": "^4.36.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

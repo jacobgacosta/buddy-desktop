@@ -37,7 +37,7 @@ export type AvatarState = 'idle' | 'walk' | 'talk' | 'think' | 'react_happy' | '
 export interface CharacterManifest {
   id: string
   name: string
-  type: 'sprite' | 'lottie' | 'rive'
+  type: 'sprite' | 'lottie' | 'rive' | 'canvas'
   species?: 'cat' | 'fox'
   personality: string
   palette: [string, string]

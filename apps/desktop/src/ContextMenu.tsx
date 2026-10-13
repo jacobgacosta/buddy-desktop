@@ -28,7 +28,7 @@ export function ContextMenu({ x, y, isAnchored, onToggleAnchor, onOpenSettings, 
           position: 'absolute', left: x, top: y, zIndex: 999,
           background: 'rgba(12,12,22,0.97)',
           border: '1px solid rgba(255,255,255,0.09)',
-          borderRadius: 10, padding: '4px 0', minWidth: 152,
+          borderRadius: 10, padding: '4px 0', minWidth: 170,
           boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
           fontFamily: 'system-ui',
         }}

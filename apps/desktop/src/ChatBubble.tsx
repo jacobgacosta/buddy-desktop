@@ -61,7 +61,7 @@ export function ChatBubble({ history, thinking, onSend, onClose }: Props) {
       <div style={{ flex: 1, overflowY: 'auto', padding: '10px 10px 4px', display: 'flex', flexDirection: 'column', gap: 6 }}>
         {history.length === 0 && (
           <div style={{ color: '#4b5563', fontSize: 12, textAlign: 'center', marginTop: 20 }}>
-            Escríbeme algo 👋
+            Escríbeme algo...
           </div>
         )}
         {history.map(m => (
