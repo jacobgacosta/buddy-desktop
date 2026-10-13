@@ -135,7 +135,7 @@ export function BuddyOverlay() {
   const monitorRef   = useRef<MonitorBounds>({ x: 0, y: 0, w: sw, h: sh })
 
   const [avatarConfig, setAvatarConfig] = useState(() => loadConfig() ?? { name: DEFAULT_AVATAR.name, personality: DEFAULT_AVATAR.personality })
-  const avatar = useMemo<Avatar>(() => ({ ...DEFAULT_AVATAR, name: avatarConfig.name, personality: avatarConfig.personality }), [avatarConfig])
+  const avatar = useMemo<Avatar>(() => ({ ...DEFAULT_AVATAR, id: currentCharacter.id, name: avatarConfig.name, personality: avatarConfig.personality }), [avatarConfig, currentCharacter.id])
 
   const handleSaveConfig = useCallback((name: string, personality: string) => {
     const cfg = { name, personality }
