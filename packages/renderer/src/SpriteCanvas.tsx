@@ -33,11 +33,16 @@ export function SpriteCanvas({ character, state, size, onStateComplete }: Props)
   // Load spritesheet image once
   useEffect(() => {
     if (!character.sheet) return
+    setLoadError(false)
     const img = new Image()
     img.src = character.sheet
     img.onload = () => { imgRef.current = img }
     img.onerror = () => setLoadError(true)
-    return () => { img.onload = null; img.onerror = null }
+    return () => {
+      img.onload = null
+      img.onerror = null
+      imgRef.current = null
+    }
   }, [character.sheet])
 
   // Reset frame on state change
