@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
@@ -6,7 +6,7 @@ import { BuddyCanvas } from '@buddy/renderer'
 import { ChatBubble } from './ChatBubble'
 import { useBuddy } from './hooks/useBuddy'
 import { createPhysics, tickPhysics, setWalkTarget, randomNearbyTarget } from './physics'
-import type { Avatar } from '@buddy/types'
+import type { Avatar, Message } from '@buddy/types'
 import type { Position } from './physics'
 
 // Window dimensions and avatar placement within it.
@@ -31,7 +31,30 @@ const DEFAULT_AVATAR: Avatar = {
 
 type MonitorBounds = { x: number; y: number; w: number; h: number }
 
-const POS_KEY = 'buddy-pos'
+const POS_KEY     = 'buddy-pos'
+const CONFIG_KEY  = 'buddy-avatar-config'
+const HISTORY_KEY = 'buddy-history'
+const MAX_HISTORY = 30
+
+function loadConfig(): { name: string; personality: string } | null {
+  try {
+    const raw = localStorage.getItem(CONFIG_KEY)
+    if (!raw) return null
+    const { name, personality } = JSON.parse(raw)
+    if (typeof name === 'string' && typeof personality === 'string') return { name, personality }
+  } catch {}
+  return null
+}
+
+function loadHistory(): Message[] {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY)
+    if (!raw) return []
+    const arr = JSON.parse(raw)
+    if (Array.isArray(arr)) return arr as Message[]
+  } catch {}
+  return []
+}
 function loadSavedWinPos(): { x: number; y: number } | null {
   try {
     const raw = localStorage.getItem(POS_KEY)
@@ -90,7 +113,17 @@ export function BuddyOverlay() {
   const anchoredRef   = useRef(false)
   const monitorRef   = useRef<MonitorBounds>({ x: 0, y: 0, w: sw, h: sh })
 
-  const { state, history, thinking, sendMessage, wakeUp, startWalking, stopWalking } = useBuddy(DEFAULT_AVATAR)
+  const [avatarConfig, setAvatarConfig] = useState(() => loadConfig() ?? { name: DEFAULT_AVATAR.name, personality: DEFAULT_AVATAR.personality })
+  const avatar = useMemo<Avatar>(() => ({ ...DEFAULT_AVATAR, name: avatarConfig.name, personality: avatarConfig.personality }), [avatarConfig])
+
+  const handleSaveConfig = useCallback((name: string, personality: string) => {
+    const cfg = { name, personality }
+    setAvatarConfig(cfg)
+    try { localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg)) } catch {}
+  }, [])
+
+  const [initialHistory] = useState(loadHistory)
+  const { state, history, thinking, sendMessage, wakeUp, startWalking, stopWalking } = useBuddy(avatar, initialHistory)
   const stateRef = useRef(state)
   stateRef.current = state
 
@@ -133,6 +166,12 @@ export function BuddyOverlay() {
     prevStateRef.current = state
     if (prev === 'sleep' && state === 'idle') scheduleNextWalk(2_000)
   }, [state, scheduleNextWalk])
+
+  // Persist chat history (last MAX_HISTORY messages)
+  useEffect(() => {
+    if (history.length === 0) return
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(-MAX_HISTORY))) } catch {}
+  }, [history])
 
   // Refresh monitor bounds when window is moved by OS (snap, keyboard, multi-monitor drag)
   useEffect(() => {
@@ -265,6 +304,9 @@ export function BuddyOverlay() {
             thinking={thinking}
             onSend={sendMessage}
             onClose={() => setChatOpen(false)}
+            avatarName={avatarConfig.name}
+            avatarPersonality={avatarConfig.personality}
+            onSaveConfig={handleSaveConfig}
           />
         </div>
       )}

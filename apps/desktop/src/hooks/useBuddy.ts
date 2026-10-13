@@ -5,9 +5,9 @@ import type { Avatar, Message, AvatarState } from '@buddy/types'
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? 'http://localhost:7788'
 
-export function useBuddy(avatar: Avatar) {
+export function useBuddy(avatar: Avatar, initialHistory: Message[] = []) {
   const [state, setState] = useState<AvatarState>('idle')
-  const [history, setHistory] = useState<Message[]>([])
+  const [history, setHistory] = useState<Message[]>(initialHistory)
   const [thinking, setThinking] = useState(false)
   const [lastUserActivity, setLastUserActivity] = useState(Date.now())
 
