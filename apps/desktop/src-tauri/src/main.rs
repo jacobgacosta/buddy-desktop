@@ -64,6 +64,19 @@ fn update_tray_menu(app: &AppHandle, is_visible: bool, is_anchored: bool) {
     }
 }
 
+#[tauri::command]
+fn set_anchor(app: tauri::AppHandle, anchored: bool) -> Result<(), String> {
+    {
+        let state = app.state::<Mutex<TrayState>>();
+        state.lock().unwrap().is_anchored = anchored;
+    }
+    let visible = app.get_webview_window("buddy")
+        .and_then(|w| w.is_visible().ok())
+        .unwrap_or(true);
+    update_tray_menu(&app, visible, anchored);
+    Ok(())
+}
+
 /// Toggles the window visibility and updates the tray menu accordingly.
 fn toggle_window_visibility(app: &AppHandle) {
     if let Some(win) = app.get_webview_window("buddy") {
@@ -88,6 +101,7 @@ fn main() {
             passthrough::set_ignore_cursor,
             move_window,
             get_monitor_bounds,
+            set_anchor,
         ])
         .setup(|app| {
             app.manage(Mutex::new(TrayState { is_anchored: false }));

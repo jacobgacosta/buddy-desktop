@@ -4,6 +4,8 @@ import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { BuddyCanvas } from '@buddy/renderer'
 import { ChatBubble } from './ChatBubble'
+import { ContextMenu } from './ContextMenu'
+import { SettingsPanel } from './SettingsPanel'
 import { useBuddy } from './hooks/useBuddy'
 import { createPhysics, tickPhysics, setWalkTarget, randomNearbyTarget } from './physics'
 import type { Avatar, Message } from '@buddy/types'
@@ -90,6 +92,9 @@ function clampedWalkTarget(pos: Position, mon: MonitorBounds, radius = 350): Pos
 
 export function BuddyOverlay() {
   const [chatOpen, setChatOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [isAnchored, setIsAnchored] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
 
   // Avatar screen position on start: 20px from right/bottom edge.
   // pos.(x,y) = avatar screen coords; window pos = (pos.x - OFF_X, pos.y - OFF_Y).
@@ -191,6 +196,7 @@ export function BuddyOverlay() {
     let unlisten: (() => void) | undefined
     listen<boolean>('anchor-changed', ({ payload }) => {
       anchoredRef.current = payload
+      setIsAnchored(payload)
       if (!payload) scheduleNextWalk(2_000)
     }).then(fn => { unlisten = fn })
     return () => { unlisten?.() }
@@ -243,6 +249,7 @@ export function BuddyOverlay() {
   const mouseDownAt = useRef<{ x: number; y: number } | null>(null)
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return
     const startMouseX = e.screenX
     const startMouseY = e.screenY
     const startWinX = window.screenX
@@ -286,6 +293,23 @@ export function BuddyOverlay() {
     window.addEventListener('mouseup', onUp)
   }, [moveWindow, stopWalking, refreshMonitor, scheduleNextWalk])
 
+  const handleToggleAnchor = useCallback(() => {
+    const next = !anchoredRef.current
+    anchoredRef.current = next
+    setIsAnchored(next)
+    void invoke('set_anchor', { anchored: next })
+    if (!next) scheduleNextWalk(2_000)
+  }, [scheduleNextWalk])
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const MENU_W = 152, MENU_H = 90
+    const x = Math.min(e.clientX, WIN_W - MENU_W)
+    const y = Math.min(e.clientY, WIN_H - MENU_H)
+    setContextMenu({ x, y })
+  }, [])
+
   const handleClick = useCallback(() => {
     if (!mouseDownAt.current) return
     mouseDownAt.current = null
@@ -293,24 +317,41 @@ export function BuddyOverlay() {
     setChatOpen(o => !o)
   }, [wakeUp])
 
+  const panelSlot: React.CSSProperties = {
+    position: 'absolute', top: SPRITE + 8, left: 8, right: 8, bottom: 8, overflow: 'hidden',
+  }
+
   return (
     <div style={{ width: WIN_W, height: WIN_H, position: 'relative' }}>
-      {chatOpen && (
-        <div style={{
-          position: 'absolute',
-          top: SPRITE + 8, left: 8, right: 8, bottom: 8,
-          overflow: 'hidden',
-        }}>
+      {chatOpen && !settingsOpen && (
+        <div style={panelSlot}>
           <ChatBubble
             history={history}
             thinking={thinking}
             onSend={sendMessage}
             onClose={() => setChatOpen(false)}
-            avatarName={avatarConfig.name}
-            avatarPersonality={avatarConfig.personality}
-            onSaveConfig={handleSaveConfig}
           />
         </div>
+      )}
+      {settingsOpen && (
+        <div style={panelSlot}>
+          <SettingsPanel
+            avatarName={avatarConfig.name}
+            avatarPersonality={avatarConfig.personality}
+            onSave={handleSaveConfig}
+            onClose={() => setSettingsOpen(false)}
+          />
+        </div>
+      )}
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          isAnchored={isAnchored}
+          onToggleAnchor={handleToggleAnchor}
+          onOpenSettings={() => { setSettingsOpen(true); setChatOpen(false) }}
+          onClose={() => setContextMenu(null)}
+        />
       )}
       <div
         style={{
@@ -322,6 +363,7 @@ export function BuddyOverlay() {
         }}
         onMouseDown={handleMouseDown}
         onClick={handleClick}
+        onContextMenu={handleContextMenu}
       >
         <BuddyCanvas
           riveFile={DEFAULT_AVATAR.riveFile}
