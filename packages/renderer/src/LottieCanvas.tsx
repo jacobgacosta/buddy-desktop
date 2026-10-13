@@ -1,6 +1,6 @@
-import { useEffect, useState, Component } from 'react'
-import type { ReactNode, ErrorInfo } from 'react'
-import Lottie from 'lottie-react'
+import { useEffect, useRef, useState } from 'react'
+import lottie from 'lottie-web'
+import type { AnimationItem } from 'lottie-web'
 import type { AvatarState, CharacterManifest } from '@buddy/types'
 
 interface Props {
@@ -10,26 +10,6 @@ interface Props {
   onStateComplete?: () => void
 }
 
-class LottieErrorBoundary extends Component<{ size: number; emoji: string; children: ReactNode }, { hasError: boolean }> {
-  state = { hasError: false }
-  static getDerivedStateFromError() { return { hasError: true } }
-  componentDidCatch(_: Error, __: ErrorInfo) {}
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div style={{
-          width: this.props.size, height: this.props.size,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: this.props.size * 0.75, userSelect: 'none',
-        }}>
-          {this.props.emoji}
-        </div>
-      )
-    }
-    return this.props.children
-  }
-}
-
 const FALLBACK_EMOJI: Record<AvatarState, string> = {
   idle: '🦊', walk: '🦊', talk: '🦊', think: '🤔', react_happy: '🥰', sleep: '😴',
 }
@@ -37,31 +17,68 @@ const FALLBACK_EMOJI: Record<AvatarState, string> = {
 const LOOPING_STATES: AvatarState[] = ['idle', 'walk', 'talk', 'think', 'sleep']
 
 export function LottieCanvas({ character, state, size, onStateComplete }: Props) {
-  const [clipData, setClipData] = useState<unknown>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const animRef = useRef<AnimationItem | null>(null)
   const [loadError, setLoadError] = useState(false)
 
   const resolveClipUrl = (s: AvatarState): string | undefined =>
     character.clips?.[s] ?? character.clips?.['idle']
 
   useEffect(() => {
+    if (!containerRef.current) return
+
     const url = resolveClipUrl(state)
-    if (!url) { setLoadError(true); return }
-    setLoadError(false)
-    setClipData(null)
-    fetch(url)
-      .then(r => r.ok ? r.json() : Promise.reject(new Error(`${r.status}`)))
-      .then(data => setClipData(data))
-      .catch(() => {
-        const idleUrl = character.clips?.['idle']
-        if (idleUrl && idleUrl !== url) {
-          fetch(idleUrl)
-            .then(r => r.ok ? r.json() : Promise.reject(new Error(`${r.status}`)))
-            .then(data => setClipData(data))
-            .catch(() => setLoadError(true))
-        } else {
-          setLoadError(true)
-        }
-      })
+    if (!url || !character.clips) { setLoadError(true); return }
+
+    let cancelled = false
+
+    const loadAnimation = (clipUrl: string) => {
+      fetch(clipUrl)
+        .then(r => r.ok ? r.json() : Promise.reject(new Error(`${r.status}`)))
+        .then(data => {
+          if (cancelled || !containerRef.current) return
+
+          // Destroy previous instance before creating new one
+          if (animRef.current) {
+            animRef.current.destroy()
+            animRef.current = null
+          }
+          // Clear any stale canvas elements lottie-web may have left behind
+          containerRef.current.innerHTML = ''
+
+          setLoadError(false)
+          animRef.current = lottie.loadAnimation({
+            container: containerRef.current,
+            animationData: data,
+            renderer: 'canvas',
+            loop: LOOPING_STATES.includes(state),
+            autoplay: true,
+          })
+
+          if (state === 'react_happy' && onStateComplete) {
+            animRef.current.addEventListener('complete', onStateComplete)
+          }
+        })
+        .catch(() => {
+          if (cancelled) return
+          const idleUrl = character.clips?.['idle']
+          if (idleUrl && idleUrl !== clipUrl) {
+            loadAnimation(idleUrl)
+          } else {
+            setLoadError(true)
+          }
+        })
+    }
+
+    loadAnimation(url)
+
+    return () => {
+      cancelled = true
+      if (animRef.current) {
+        animRef.current.destroy()
+        animRef.current = null
+      }
+    }
   }, [state, character.clips])
 
   if (loadError || !character.clips) {
@@ -76,17 +93,5 @@ export function LottieCanvas({ character, state, size, onStateComplete }: Props)
     )
   }
 
-  if (!clipData) return <div style={{ width: size, height: size }} />
-
-  return (
-    <LottieErrorBoundary size={size} emoji={FALLBACK_EMOJI[state]}>
-      <Lottie
-        animationData={clipData}
-        loop={LOOPING_STATES.includes(state)}
-        onComplete={state === 'react_happy' && onStateComplete ? onStateComplete : undefined}
-        style={{ width: size, height: size }}
-        renderer="canvas"
-      />
-    </LottieErrorBoundary>
-  )
+  return <div ref={containerRef} style={{ width: size, height: size }} />
 }
