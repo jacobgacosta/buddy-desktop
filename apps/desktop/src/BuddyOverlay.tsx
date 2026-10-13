@@ -4,7 +4,6 @@ import { listen } from '@tauri-apps/api/event'
 import { BuddyCanvas } from '@buddy/renderer'
 import { ChatBubble } from './ChatBubble'
 import { useBuddy } from './hooks/useBuddy'
-import { usePassthrough } from './hooks/usePassthrough'
 import { createPhysics, tickPhysics, setWalkTarget, randomNearbyTarget } from './physics'
 import type { Avatar } from '@buddy/types'
 import type { Position } from './physics'
@@ -56,8 +55,8 @@ export function BuddyOverlay() {
 
   // Avatar screen position on start: 20px from right/bottom edge.
   // pos.(x,y) = avatar screen coords; window pos = (pos.x - OFF_X, pos.y - OFF_Y).
-  const sw = window.screen.width
-  const sh = window.screen.height
+  const sw = window.screen.availWidth
+  const sh = window.screen.availHeight
   const initPos = { x: sw - WIN_W + OFF_X - 20, y: sh - WIN_H - 20 }
 
   const physicsRef   = useRef(createPhysics(initPos))
@@ -73,7 +72,6 @@ export function BuddyOverlay() {
   const monitorRef   = useRef<MonitorBounds>({ x: 0, y: 0, w: sw, h: sh })
 
   const { state, history, thinking, sendMessage, wakeUp, startWalking, stopWalking } = useBuddy(DEFAULT_AVATAR)
-  const { setIgnore } = usePassthrough()
   const stateRef = useRef(state)
   stateRef.current = state
 
@@ -100,9 +98,6 @@ export function BuddyOverlay() {
       )
     }, delay)
   }, [startWalking])
-
-  // Window is pass-through by default so the system tray and desktop remain accessible.
-  useEffect(() => { void setIgnore(true) }, [setIgnore])
 
   // Place window at initial position and kick off the first walk after 1 s.
   useEffect(() => {
@@ -206,7 +201,6 @@ export function BuddyOverlay() {
       lastWinPos.current = { x: finalWx, y: finalWy }
       stopWalking()
       isDraggingRef.current = false
-      void setIgnore(true)
       refreshMonitor()
       scheduleNextWalk(2_000)
     }
@@ -223,11 +217,7 @@ export function BuddyOverlay() {
   }, [wakeUp])
 
   return (
-    <div
-      style={{ width: WIN_W, height: WIN_H, position: 'relative' }}
-      onMouseEnter={() => void setIgnore(false)}
-      onMouseLeave={() => { if (!isDraggingRef.current) void setIgnore(true) }}
-    >
+    <div style={{ width: WIN_W, height: WIN_H, position: 'relative' }}>
       {chatOpen && (
         <div style={{
           position: 'absolute',
