@@ -41,4 +41,12 @@ export class AvatarStateMachine {
   stopWalking() {
     if (this._state === 'walk') this.transition('idle')
   }
+
+  reactHappy() {
+    if (this._state === 'idle') this.transition('react_happy')
+  }
+
+  finishReacting() {
+    if (this._state === 'react_happy') this.transition('idle')
+  }
 }

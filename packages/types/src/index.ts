@@ -33,3 +33,21 @@ export interface ChatResponse {
 }
 
 export type AvatarState = 'idle' | 'walk' | 'talk' | 'think' | 'react_happy' | 'sleep'
+
+export interface CharacterManifest {
+  id: string
+  name: string
+  type: 'sprite' | 'lottie'
+  personality: string
+  palette: [string, string]
+
+  // sprite only
+  sheet?: string
+  frameWidth?: number
+  frameHeight?: number
+  fps?: number
+  states?: Partial<Record<AvatarState, { row: number; frames: number }>>
+
+  // lottie only
+  clips?: Partial<Record<AvatarState, string>>
+}

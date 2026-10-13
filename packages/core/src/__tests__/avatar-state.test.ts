@@ -47,4 +47,24 @@ describe('AvatarStateMachine', () => {
     sm.sendMessage()
     expect(sm.state).toBe('think')
   })
+
+  it('transitions idle → react_happy on reactHappy()', () => {
+    const sm = new AvatarStateMachine()
+    sm.reactHappy()
+    expect(sm.state).toBe('react_happy')
+  })
+
+  it('transitions react_happy → idle on finishReacting()', () => {
+    const sm = new AvatarStateMachine()
+    sm.reactHappy()
+    sm.finishReacting()
+    expect(sm.state).toBe('idle')
+  })
+
+  it('ignores reactHappy() when not idle', () => {
+    const sm = new AvatarStateMachine()
+    sm.startWalking()
+    sm.reactHappy()
+    expect(sm.state).toBe('walk')
+  })
 })
