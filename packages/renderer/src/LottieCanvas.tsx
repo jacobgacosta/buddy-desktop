@@ -85,6 +85,7 @@ export function LottieCanvas({ character, state, size, onStateComplete }: Props)
         loop={LOOPING_STATES.includes(state)}
         onComplete={state === 'react_happy' && onStateComplete ? onStateComplete : undefined}
         style={{ width: size, height: size }}
+        renderer="canvas"
       />
     </LottieErrorBoundary>
   )
