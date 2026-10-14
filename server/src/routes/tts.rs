@@ -29,5 +29,5 @@ pub async fn tts(
     Ok(Response::builder()
         .header(header::CONTENT_TYPE, "audio/wav")
         .body(axum::body::Body::from(bytes))
-        .unwrap())
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?)
 }

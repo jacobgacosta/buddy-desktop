@@ -1,5 +1,3 @@
-#![allow(unused_imports)]
-
 mod routes;
 mod state;
 
