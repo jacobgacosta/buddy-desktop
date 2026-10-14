@@ -9,6 +9,11 @@ export function SpeechBubble({ text, onDone }: Props) {
   const [displayed, setDisplayed] = useState('')
   const [fading, setFading] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const onDoneRef = useRef(onDone)
+
+  useEffect(() => {
+    onDoneRef.current = onDone
+  }, [onDone])
 
   useEffect(() => {
     setDisplayed('')
@@ -24,7 +29,7 @@ export function SpeechBubble({ text, onDone }: Props) {
         const holdMs = Math.min(6000, Math.max(2000, text.length * 40))
         timerRef.current = setTimeout(() => {
           setFading(true)
-          timerRef.current = setTimeout(onDone, 400)
+          timerRef.current = setTimeout(onDoneRef.current, 400)
         }, holdMs)
       }
     }, 30)
