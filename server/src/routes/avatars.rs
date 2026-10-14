@@ -39,6 +39,8 @@ mod tests {
         let state = AppState {
             ollama_url: "http://localhost:11434".into(),
             mood_url: "http://localhost:11434".into(),
+            whisper_url: "http://localhost:8080".into(),
+            piper_url: "http://localhost:5000".into(),
             avatars_dir: dir.to_str().unwrap().into(),
             http: reqwest::Client::new(),
         };

@@ -30,6 +30,8 @@ async fn main() {
         .route("/avatars", get(routes::avatars::list_avatars))
         .route("/chat", post(routes::chat::chat))
         .route("/mood", post(routes::mood::decide_mood))
+        .route("/transcribe", post(routes::transcribe::transcribe))
+        .route("/tts", post(routes::tts::tts))
         .layer(cors)
         .with_state(state);
 
