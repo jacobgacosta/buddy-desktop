@@ -8,8 +8,12 @@ import { ContextMenu } from './ContextMenu'
 import { SettingsPanel } from './SettingsPanel'
 import { CharacterPicker } from './CharacterPicker'
 import { useBuddy } from './hooks/useBuddy'
+import { useSensors } from './hooks/useSensors'
+import { useMood } from './hooks/useMood'
 import { CHARACTERS, findCharacter } from './characters/registry'
 import { createPhysics, tickPhysics, setWalkTarget, randomNearbyTarget } from './physics'
+import { gaussian, moodToParams } from '@buddy/core'
+import type { BehaviorParams } from '@buddy/core'
 import type { Avatar, Message } from '@buddy/types'
 import type { Position } from './physics'
 
@@ -137,6 +141,12 @@ export function BuddyOverlay() {
   const isDraggingRef = useRef(false)
   const anchoredRef   = useRef(false)
   const monitorRef   = useRef<MonitorBounds>({ x: 0, y: 0, w: sw, h: sh })
+  const fidgetTimerRef  = useRef(0)
+  const fidgetHomeRef   = useRef<Position | null>(null)
+  const behaviorRef     = useRef<BehaviorParams>({
+    walkFrequencyMs: 8_000, walkSpeedPx: 80, walkRadius: 350,
+    fidgetEnabled: false, fidgetIntervalMs: 0, fidgetRadiusPx: 0,
+  })
 
   const [avatarConfig, setAvatarConfig] = useState(() => loadConfig() ?? { name: DEFAULT_AVATAR.name, personality: DEFAULT_AVATAR.personality })
   const avatar = useMemo<Avatar>(() => ({ ...DEFAULT_AVATAR, id: currentCharacter.id, name: avatarConfig.name, personality: avatarConfig.personality }), [avatarConfig, currentCharacter.id])
@@ -151,6 +161,17 @@ export function BuddyOverlay() {
   const { state, history, thinking, sendMessage, wakeUp, startWalking, stopWalking, stopReacting } = useBuddy(avatar, initialHistory)
   const stateRef = useRef(state)
   stateRef.current = state
+
+  const snapshot = useSensors()
+  const mood = useMood(snapshot)
+
+  // Sync z-order when mood changes
+  const prevZOrderRef = useRef(mood.zOrder)
+  useEffect(() => {
+    if (mood.zOrder === prevZOrderRef.current) return
+    prevZOrderRef.current = mood.zOrder
+    void invoke('set_z_order', { onTop: mood.zOrder !== 'behind' })
+  }, [mood.zOrder])
 
   const moveWindow = useCallback((x: number, y: number) => {
     void invoke('move_window', { x, y })
@@ -175,17 +196,44 @@ export function BuddyOverlay() {
       const scale = Math.max(0.75, Math.min(2, monitorRef.current.w / 1920))
       physicsRef.current = setWalkTarget(
         physicsRef.current,
-        clampedWalkTarget(physicsRef.current.pos, monitorRef.current, Math.round(350 * scale)),
+        clampedWalkTarget(physicsRef.current.pos, monitorRef.current, Math.round(behaviorRef.current.walkRadius * scale)),
       )
     }, delay)
   }, [startWalking])
+
+  const scheduleFidget = useCallback(() => {
+    clearTimeout(fidgetTimerRef.current)
+    const params = behaviorRef.current
+    if (!params.fidgetEnabled) return
+    fidgetTimerRef.current = window.setTimeout(() => {
+      if (physicsRef.current.target !== null || isDraggingRef.current || uiBusyRef.current) {
+        scheduleFidget()
+        return
+      }
+      fidgetHomeRef.current = { ...physicsRef.current.pos }
+      const angle = Math.random() * Math.PI * 2
+      const fidgetTarget = {
+        x: physicsRef.current.pos.x + Math.cos(angle) * params.fidgetRadiusPx,
+        y: physicsRef.current.pos.y + Math.sin(angle) * params.fidgetRadiusPx,
+      }
+      physicsRef.current = { ...setWalkTarget(physicsRef.current, fidgetTarget), isFidget: true }
+    }, params.fidgetIntervalMs)
+  }, [])
+
+  // Sync behavior params when mood changes
+  useEffect(() => {
+    behaviorRef.current = moodToParams(mood)
+    scheduleFidget()
+  }, [mood, scheduleFidget])
 
   // Place window at initial position and kick off the first walk after 1 s.
   useEffect(() => {
     moveWindow(Math.round(initPos.x - OFF_X), Math.round(initPos.y - OFF_Y))
     refreshMonitor()
     scheduleNextWalk(1_000)
-  }, [moveWindow, refreshMonitor, scheduleNextWalk])
+    scheduleFidget()
+    return () => clearTimeout(walkTimerRef.current)
+  }, [moveWindow, refreshMonitor, scheduleNextWalk, scheduleFidget])
 
   // Resume walk cycle after waking from sleep (both auto-wake and user click).
   const prevStateRef = useRef(state)
@@ -230,14 +278,29 @@ export function BuddyOverlay() {
       lastTimeRef.current = now
 
       if (!isDraggingRef.current) {
-        const hadTarget = physicsRef.current.target !== null
-        const scale = Math.max(0.75, Math.min(2, monitorRef.current.w / 1920))
-        physicsRef.current = tickPhysics(physicsRef.current, dt, Math.round(80 * scale))
+        const hadTarget  = physicsRef.current.target !== null
+        const wasFidget  = physicsRef.current.isFidget
+        const scale      = Math.max(0.75, Math.min(2, monitorRef.current.w / 1920))
+        const speed      = Math.round(behaviorRef.current.walkSpeedPx * scale)
+        physicsRef.current = tickPhysics(physicsRef.current, dt, speed)
+
         if (hadTarget && physicsRef.current.target === null) {
-          stopWalking()
-          const { x, y } = physicsRef.current.pos
-          saveWinPos(Math.round(x - OFF_X), Math.round(y - OFF_Y))
-          scheduleNextWalk(Math.random() * 5_000 + 3_000)
+          if (wasFidget) {
+            if (fidgetHomeRef.current) {
+              physicsRef.current = { ...setWalkTarget(physicsRef.current, fidgetHomeRef.current), isFidget: true }
+              fidgetHomeRef.current = null
+            } else {
+              physicsRef.current = { ...physicsRef.current, isFidget: false }
+              scheduleFidget()
+            }
+          } else {
+            stopWalking()
+            const { x, y } = physicsRef.current.pos
+            saveWinPos(Math.round(x - OFF_X), Math.round(y - OFF_Y))
+            const delay = gaussian(behaviorRef.current.walkFrequencyMs, behaviorRef.current.walkFrequencyMs * 0.4)
+            scheduleNextWalk(Math.round(delay))
+            scheduleFidget()
+          }
         }
       }
 
@@ -263,8 +326,10 @@ export function BuddyOverlay() {
     return () => {
       cancelAnimationFrame(rafRef.current)
       clearTimeout(sleepTimerRef.current)
+      clearTimeout(walkTimerRef.current)
+      clearTimeout(fidgetTimerRef.current)
     }
-  }, [moveWindow, stopWalking, scheduleNextWalk])
+  }, [moveWindow, stopWalking, scheduleNextWalk, scheduleFidget])
 
   // Drag — implemented in JS using screen coordinates so mouseup is always reliable.
   const mouseDownAt = useRef<{ x: number; y: number } | null>(null)
@@ -314,6 +379,10 @@ export function BuddyOverlay() {
 
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
   }, [moveWindow, stopWalking, refreshMonitor, scheduleNextWalk])
 
   const handleToggleAnchor = useCallback(() => {
