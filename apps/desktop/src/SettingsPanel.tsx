@@ -3,13 +3,17 @@ import { useState } from 'react'
 interface Props {
   avatarName: string
   avatarPersonality: string
+  textEnabled: boolean
+  voiceEnabled: boolean
   onSave: (name: string, personality: string) => void
+  onToggleText: (v: boolean) => void
+  onToggleVoice: (v: boolean) => void
   onClose: () => void
 }
 
 const dark = '#1f2937'
 
-export function SettingsPanel({ avatarName, avatarPersonality, onSave, onClose }: Props) {
+export function SettingsPanel({ avatarName, avatarPersonality, textEnabled, voiceEnabled, onSave, onToggleText, onToggleVoice, onClose }: Props) {
   const [name, setName] = useState(avatarName)
   const [personality, setPersonality] = useState(avatarPersonality)
 
@@ -47,6 +51,27 @@ export function SettingsPanel({ avatarName, avatarPersonality, onSave, onClose }
             style={{ background: dark, border: 'none', borderRadius: 8, padding: '6px 10px', color: '#fff', fontSize: 12, outline: 'none', resize: 'none', flex: 1, minHeight: 80, fontFamily: 'system-ui' }}
           />
         </label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span style={{ color: '#9ca3af', fontSize: 10, fontWeight: 600, letterSpacing: 0.8, textTransform: 'uppercase' }}>Respuestas</span>
+          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
+            <span style={{ color: '#d1d5db', fontSize: 12 }}>Mostrar texto</span>
+            <input
+              type="checkbox"
+              checked={textEnabled}
+              onChange={e => onToggleText(e.target.checked)}
+              style={{ accentColor: '#4338ca', width: 16, height: 16, cursor: 'pointer' }}
+            />
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
+            <span style={{ color: '#d1d5db', fontSize: 12 }}>Voz (Piper)</span>
+            <input
+              type="checkbox"
+              checked={voiceEnabled}
+              onChange={e => onToggleVoice(e.target.checked)}
+              style={{ accentColor: '#4338ca', width: 16, height: 16, cursor: 'pointer' }}
+            />
+          </label>
+        </div>
       </div>
       <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
         <button

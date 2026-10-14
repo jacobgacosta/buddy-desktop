@@ -488,7 +488,11 @@ export function BuddyOverlay() {
           <SettingsPanel
             avatarName={avatarConfig.name}
             avatarPersonality={avatarConfig.personality}
+            textEnabled={textEnabled}
+            voiceEnabled={ttsEnabled}
             onSave={handleSaveConfig}
+            onToggleText={(v) => { setTextEnabled(v); localStorage.setItem('buddy-tts-text', String(v)) }}
+            onToggleVoice={(v) => { setTtsEnabled(v); localStorage.setItem('buddy-tts-voice', String(v)) }}
             onClose={() => setSettingsOpen(false)}
           />
         </div>
