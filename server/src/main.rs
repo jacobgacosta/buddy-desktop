@@ -29,6 +29,7 @@ async fn main() {
         .route("/health", get(routes::health::health))
         .route("/avatars", get(routes::avatars::list_avatars))
         .route("/chat", post(routes::chat::chat))
+        .route("/mood", post(routes::mood::decide_mood))
         .layer(cors)
         .with_state(state);
 
