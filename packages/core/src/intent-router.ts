@@ -1,10 +1,6 @@
-export type AvatarAction = 'sleep' | 'wakeUp' | 'walk' | 'dance' | 'react'
+import type { AvatarAction, VoiceCommand } from '@buddy/types'
 
-export interface VoiceCommand {
-  triggers: string[]
-  action: AvatarAction
-  responses?: string[]
-}
+export type { AvatarAction, VoiceCommand }
 
 export interface IntentResult {
   type: 'wake_word' | 'command' | 'none'

@@ -34,6 +34,14 @@ export interface ChatResponse {
 
 export type AvatarState = 'idle' | 'walk' | 'talk' | 'think' | 'react_happy' | 'sleep'
 
+export type AvatarAction = 'sleep' | 'wakeUp' | 'walk' | 'dance' | 'react'
+
+export interface VoiceCommand {
+  triggers: string[]
+  action: AvatarAction
+  responses?: string[]
+}
+
 export interface CharacterManifest {
   id: string
   name: string
@@ -41,6 +49,8 @@ export interface CharacterManifest {
   species?: 'cat' | 'fox'
   personality: string
   palette: [string, string]
+  wakeWord?: string
+  commands?: VoiceCommand[]
 
   // sprite only
   sheet?: string

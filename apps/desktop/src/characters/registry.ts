@@ -1,4 +1,22 @@
-import type { CharacterManifest } from '@buddy/types'
+import type { CharacterManifest, VoiceCommand } from '@buddy/types'
+
+const sharedCommands: VoiceCommand[] = [
+  {
+    triggers: ['duerme', 'a dormir', 'échate'],
+    action: 'sleep',
+    responses: ['Buenas noches... 😴', 'Qué sueño tengo...', 'Zzz...'],
+  },
+  {
+    triggers: ['despierta', 'levántate', 'arriba', 'ya levántate'],
+    action: 'wakeUp',
+    responses: ['¡Ya estoy aquí!', '¿Qué pasó?', '¡Buenos días!'],
+  },
+  {
+    triggers: ['camina', 'muévete', 'anda'],
+    action: 'walk',
+    responses: ['¡Vamos!', 'Me muevo...', 'Buenas piernas tengo.'],
+  },
+]
 
 export const CHARACTERS: CharacterManifest[] = [
   {
@@ -17,6 +35,8 @@ export const CHARACTERS: CharacterManifest[] = [
       react_happy: 'Correct',
       sleep:       'Idle',
     },
+    wakeWord: 'buddy',
+    commands: sharedCommands,
   },
   {
     id: 'joy',
@@ -34,6 +54,8 @@ export const CHARACTERS: CharacterManifest[] = [
       react_happy: 'jump',
       sleep:       'sleep',
     },
+    wakeWord: 'buddy',
+    commands: sharedCommands,
   },
   {
     id: 'aurora',
@@ -41,6 +63,8 @@ export const CHARACTERS: CharacterManifest[] = [
     type: 'canvas',
     personality: 'Eres Aurora, una IA etérea e intuitiva. Responde en español, máximo 2-3 oraciones.',
     palette: ['#00f2fe', '#7b5fff'],
+    wakeWord: 'buddy',
+    commands: sharedCommands,
   },
 ]
 
