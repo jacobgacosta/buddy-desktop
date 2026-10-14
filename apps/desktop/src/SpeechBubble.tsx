@@ -42,11 +42,8 @@ export function SpeechBubble({ text, onDone }: Props) {
 
   return (
     <div style={{
-      position: 'absolute',
-      bottom: '100%',
-      left: '50%',
-      transform: 'translateX(-50%)',
-      marginBottom: 8,
+      position: 'relative',
+      marginTop: 8,
       maxWidth: 220,
       background: 'rgba(14,14,26,0.95)',
       border: '1px solid rgba(255,255,255,0.1)',
@@ -57,25 +54,26 @@ export function SpeechBubble({ text, onDone }: Props) {
       fontFamily: 'system-ui',
       lineHeight: 1.4,
       boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
-      zIndex: 30,
       opacity: fading ? 0 : 1,
       transition: 'opacity 0.4s ease',
       pointerEvents: 'none',
       whiteSpace: 'pre-wrap',
       wordBreak: 'break-word',
     }}>
-      {displayed}
+      {/* arrow pointing up toward avatar */}
       <div style={{
         position: 'absolute',
-        bottom: -7,
+        top: -7,
         left: '50%',
         transform: 'translateX(-50%)',
         width: 0,
         height: 0,
         borderLeft: '7px solid transparent',
         borderRight: '7px solid transparent',
-        borderTop: '7px solid rgba(14,14,26,0.95)',
+        borderBottom: '7px solid rgba(14,14,26,0.95)',
+        pointerEvents: 'none',
       }} />
+      {displayed}
     </div>
   )
 }

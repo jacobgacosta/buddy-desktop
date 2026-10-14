@@ -30,7 +30,7 @@ pub fn launch_voice(app: AppHandle, state: Arc<Mutex<InputState>>) {
 
             vad = match vad {
                 VadState::Idle => {
-                    if level >= 0.02 {
+                    if level >= 0.015 {
                         {
                             let mut s = state.lock().unwrap();
                             s.recording = true;
@@ -43,7 +43,7 @@ pub fn launch_voice(app: AppHandle, state: Arc<Mutex<InputState>>) {
                 }
                 VadState::Recording { started_ms } => {
                     let elapsed = now_ms.saturating_sub(started_ms);
-                    if level < 0.02 {
+                    if level < 0.015 {
                         VadState::Trailing { started_ms: now_ms, recording_started: started_ms }
                     } else if elapsed > 30_000 {
                         finalize(&state, &app, started_ms, now_ms);
@@ -55,10 +55,10 @@ pub fn launch_voice(app: AppHandle, state: Arc<Mutex<InputState>>) {
                 VadState::Trailing { started_ms, recording_started } => {
                     let silence_ms = now_ms.saturating_sub(started_ms);
                     let total_ms = now_ms.saturating_sub(recording_started);
-                    if level >= 0.02 {
+                    if level >= 0.015 {
                         VadState::Recording { started_ms: recording_started }
                     } else if silence_ms >= 500 {
-                        if total_ms >= 300 {
+                        if total_ms >= 700 {
                             finalize(&state, &app, recording_started, now_ms);
                         } else {
                             let mut s = state.lock().unwrap();

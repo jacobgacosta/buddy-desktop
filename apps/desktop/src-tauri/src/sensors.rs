@@ -14,6 +14,7 @@ pub(crate) struct InputState {
     pub(crate) recording: bool,
     pub(crate) recording_buffer: Vec<f32>,
     pub(crate) recording_sample_rate: u32,
+    pub(crate) recording_channels: u16,
     ambient_active_since: Option<u64>,   // ms timestamp when sound started
     ambient_silent_since: Option<u64>,   // ms timestamp when silence started
 }
@@ -209,11 +210,13 @@ fn run_mic(
 
     let config = device.default_input_config()?;
     let sample_rate = config.sample_rate().0;
+    let channels = config.channels();
     let dev_name = device.name().unwrap_or_else(|_| "Unknown".into());
     {
         let mut s = state.lock().unwrap();
         s.mic_device_name = dev_name;
         s.recording_sample_rate = sample_rate;
+        s.recording_channels = channels;
     }
 
     let state_cb = Arc::clone(&state);
@@ -229,7 +232,16 @@ fn run_mic(
                 st.mic_level  = rms;
                 st.mic_active = rms > 0.01;
                 if st.recording {
-                    st.recording_buffer.extend_from_slice(data);
+                    let ch = st.recording_channels as usize;
+                    if ch <= 1 {
+                        st.recording_buffer.extend_from_slice(data);
+                    } else {
+                        // downmix to mono: average all channels per frame
+                        for frame in data.chunks_exact(ch) {
+                            let mono = frame.iter().sum::<f32>() / ch as f32;
+                            st.recording_buffer.push(mono);
+                        }
+                    }
                 }
             }
             // Emit real-time level ~5 times/sec

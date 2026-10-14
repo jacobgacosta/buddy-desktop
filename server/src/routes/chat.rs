@@ -45,7 +45,8 @@ pub async fn chat(
     let llm_req = serde_json::json!({
         "model": model,
         "messages": messages,
-        "stream": false
+        "stream": false,
+        "enable_thinking": false
     });
 
     let resp = state.http
@@ -63,13 +64,21 @@ pub async fn chat(
     let body: serde_json::Value = resp.json().await
         .map_err(|_| StatusCode::BAD_GATEWAY)?;
 
-    let content = body["choices"][0]["message"]["content"]
+    let raw = body["choices"][0]["message"]["content"]
         .as_str()
         .ok_or_else(|| {
             tracing::error!("Unexpected LLM response structure: {:?}", body);
             StatusCode::BAD_GATEWAY
-        })?
-        .to_string();
+        })?;
+
+    // Strip <think>...</think> blocks that qwen3 emits in thinking mode
+    let content = {
+        let mut s = raw.to_string();
+        while let (Some(start), Some(end)) = (s.find("<think>"), s.find("</think>")) {
+            if start < end { s.replace_range(start..=end + 8, ""); } else { break; }
+        }
+        s.trim().to_string()
+    };
 
     Ok(Json(ChatResponse {
         content,

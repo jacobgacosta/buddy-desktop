@@ -28,9 +28,14 @@ pub async fn transcribe(
         .mime_str("audio/wav")
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
+    let prompt = std::env::var("WHISPER_PROMPT")
+        .unwrap_or_else(|_| "buddy".into());
+
     let form = reqwest::multipart::Form::new()
         .text("model", "whisper-1")
         .text("language", lang)
+        .text("prompt", prompt)
+        .text("vad_filter", "true")
         .part("file", file_part);
 
     let resp = state.http

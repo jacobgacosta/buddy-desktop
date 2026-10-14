@@ -6,3 +6,5 @@ target/
 !server/assets/placeholder.riv
 apps/desktop/src-tauri/gen/
 apps/desktop/src-tauri/binaries/
+.env
+*.env

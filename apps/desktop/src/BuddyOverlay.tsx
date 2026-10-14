@@ -126,7 +126,7 @@ export function BuddyOverlay() {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [bubbleText, setBubbleText] = useState<string | null>(null)
   const [ttsEnabled, setTtsEnabled] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('buddy-tts-voice') ?? 'false') } catch { return false }
+    try { return JSON.parse(localStorage.getItem('buddy-tts-voice') ?? 'true') } catch { return true }
   })
   const [textEnabled, setTextEnabled] = useState(() => {
     try { return JSON.parse(localStorage.getItem('buddy-tts-text') ?? 'true') } catch { return true }
@@ -547,6 +547,11 @@ export function BuddyOverlay() {
           onClose={() => { setContextMenu(null); scheduleNextWalk(5_000) }}
         />
       )}
+      {bubbleText && (
+        <div style={{ position: 'absolute', top: SPRITE, left: 0, right: 0, zIndex: 50, pointerEvents: 'none', display: 'flex', justifyContent: 'center' }}>
+          <SpeechBubble text={bubbleText} onDone={() => setBubbleText(null)} />
+        </div>
+      )}
       <div
         style={{
           position: 'absolute',
@@ -560,9 +565,6 @@ export function BuddyOverlay() {
         onClick={handleClick}
         onContextMenu={handleContextMenu}
       >
-        {bubbleText && (
-          <SpeechBubble text={bubbleText} onDone={() => setBubbleText(null)} />
-        )}
         <CharacterRenderer
           key={`${currentCharacter.id}-${animVersion}`}
           character={currentCharacter}
