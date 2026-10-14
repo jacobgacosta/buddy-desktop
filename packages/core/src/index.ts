@@ -7,3 +7,5 @@ export type { Mood, MoodName, ZOrder, EnergyLevel, RestLevel, MoodTrigger } from
 export { fallbackMood, detectTrigger, MoodEngine } from './mood-engine'
 export type { BehaviorParams } from './behavior-engine'
 export { moodToParams } from './behavior-engine'
+export type { VoiceCommand, AvatarAction, IntentResult } from './intent-router'
+export { detectIntent } from './intent-router'
