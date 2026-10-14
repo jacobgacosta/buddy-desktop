@@ -2,6 +2,7 @@
 
 mod passthrough;
 mod sidecar;
+mod sensors;
 
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
@@ -14,6 +15,11 @@ fn move_window(window: tauri::Window, x: f64, y: f64) -> Result<(), String> {
     window
         .set_position(tauri::LogicalPosition::new(x, y))
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn set_z_order(window: tauri::Window, on_top: bool) -> Result<(), String> {
+    window.set_always_on_top(on_top).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -102,10 +108,12 @@ fn main() {
             move_window,
             get_monitor_bounds,
             set_anchor,
+            set_z_order,
         ])
         .setup(|app| {
             app.manage(Mutex::new(TrayState { is_anchored: false }));
             sidecar::launch_sidecar(app);
+            sensors::launch_sensors(app.handle().clone());
 
             let icon = make_tray_icon();
 
