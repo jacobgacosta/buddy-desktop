@@ -5,6 +5,7 @@ interface Props {
   onToggleAnchor: () => void
   onOpenSettings: () => void
   onOpenPicker: () => void
+  onOpenSensors: () => void
   onClose: () => void
 }
 
@@ -14,7 +15,7 @@ const itemStyle: React.CSSProperties = {
   textAlign: 'left', fontSize: 12, fontFamily: 'system-ui',
 }
 
-export function ContextMenu({ x, y, isAnchored, onToggleAnchor, onOpenSettings, onOpenPicker, onClose }: Props) {
+export function ContextMenu({ x, y, isAnchored, onToggleAnchor, onOpenSettings, onOpenPicker, onOpenSensors, onClose }: Props) {
   return (
     <>
       {/* backdrop — click anywhere outside menu to close */}
@@ -58,6 +59,15 @@ export function ContextMenu({ x, y, isAnchored, onToggleAnchor, onOpenSettings, 
           onClick={() => { onOpenSettings(); onClose() }}
         >
           Personalidad…
+        </button>
+        <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '3px 0' }} />
+        <button
+          style={{ ...itemStyle, color: '#9ca3af' }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+          onClick={() => { onOpenSensors(); onClose() }}
+        >
+          Sensores…
         </button>
       </div>
     </>

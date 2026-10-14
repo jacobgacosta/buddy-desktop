@@ -6,6 +6,7 @@ interface RawPayload {
   timestamp: number
   mic_active: boolean
   mic_level: number
+  mic_device_name: string
   key_rate: number
   mouse_distance: number
   input_level: 'idle' | 'light' | 'heavy'
@@ -23,7 +24,7 @@ export function useSensors(): SensorSnapshot | null {
     listen<RawPayload>('sensor-snapshot', ({ payload: p }) => {
       setSnapshot({
         timestamp: p.timestamp,
-        mic:   { active: p.mic_active, level: p.mic_level },
+        mic:   { active: p.mic_active, level: p.mic_level, deviceName: p.mic_device_name },
         input: { keyRate: p.key_rate, mouseDistance: p.mouse_distance, level: p.input_level, idleDuration: p.idle_duration_ms },
         time:  { hour: p.hour, isNight: p.is_night, isWeekend: p.is_weekend },
       })

@@ -5,6 +5,7 @@ export interface SensorSnapshot {
   mic: {
     active: boolean
     level: number       // 0-1 RMS volume
+    deviceName: string
   }
   input: {
     keyRate: number     // keypresses/min in last 60s

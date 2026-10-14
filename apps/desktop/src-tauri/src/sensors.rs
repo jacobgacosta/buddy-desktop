@@ -10,6 +10,7 @@ struct InputState {
     last_input_at: Option<u64>,
     mic_active: bool,
     mic_level: f32,
+    mic_device_name: String,
 }
 
 #[derive(Serialize, Clone)]
@@ -17,6 +18,7 @@ pub struct SensorPayload {
     pub timestamp: u64,
     pub mic_active: bool,
     pub mic_level: f32,
+    pub mic_device_name: String,
     pub key_rate: f32,
     pub mouse_distance: f32,
     pub input_level: String,
@@ -96,6 +98,7 @@ pub fn launch_sensors(app: AppHandle) {
                 timestamp: now,
                 mic_active: s.mic_active,
                 mic_level: s.mic_level,
+                mic_device_name: s.mic_device_name.clone(),
                 key_rate,
                 mouse_distance: mouse_events,
                 input_level,
@@ -124,6 +127,10 @@ fn run_mic(state: Arc<Mutex<InputState>>) -> Result<(), Box<dyn std::error::Erro
     let host   = cpal::default_host();
     let device = host.default_input_device().ok_or("no audio input device")?;
     let config = device.default_input_config()?;
+
+    // Store device name for diagnostics UI
+    let name = device.name().unwrap_or_else(|_| "Unknown".into());
+    state.lock().unwrap().mic_device_name = name;
 
     let state_cb = Arc::clone(&state);
     let stream = device.build_input_stream(

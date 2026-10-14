@@ -6,6 +6,7 @@ import { CharacterRenderer } from '@buddy/renderer'
 import { ChatBubble } from './ChatBubble'
 import { ContextMenu } from './ContextMenu'
 import { SettingsPanel } from './SettingsPanel'
+import { SensorsPanel } from './SensorsPanel'
 import { CharacterPicker } from './CharacterPicker'
 import { useBuddy } from './hooks/useBuddy'
 import { useSensors } from './hooks/useSensors'
@@ -112,6 +113,7 @@ export function BuddyOverlay() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [isAnchored, setIsAnchored] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [sensorsOpen, setSensorsOpen] = useState(false)
   const [currentCharacter, setCurrentCharacter] = useState(
     () => loadSavedCharacter() ?? CHARACTERS[0]
   )
@@ -137,7 +139,7 @@ export function BuddyOverlay() {
   const chatOpenRef  = useRef(false)
   chatOpenRef.current = chatOpen
   const uiBusyRef = useRef(false)
-  uiBusyRef.current = chatOpen || !!contextMenu || settingsOpen || pickerOpen
+  uiBusyRef.current = chatOpen || !!contextMenu || settingsOpen || pickerOpen || sensorsOpen
   const isDraggingRef = useRef(false)
   const anchoredRef   = useRef(false)
   const monitorRef   = useRef<MonitorBounds>({ x: 0, y: 0, w: sw, h: sh })
@@ -461,14 +463,24 @@ export function BuddyOverlay() {
           />
         </div>
       )}
+      {sensorsOpen && (
+        <div style={panelSlot}>
+          <SensorsPanel
+            snapshot={snapshot}
+            mood={mood}
+            onClose={() => setSensorsOpen(false)}
+          />
+        </div>
+      )}
       {contextMenu && (
         <ContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
           isAnchored={isAnchored}
           onToggleAnchor={handleToggleAnchor}
-          onOpenSettings={() => { setSettingsOpen(true); setChatOpen(false); setPickerOpen(false) }}
-          onOpenPicker={() => { setPickerOpen(true); setChatOpen(false); setSettingsOpen(false) }}
+          onOpenSettings={() => { setSettingsOpen(true); setChatOpen(false); setPickerOpen(false); setSensorsOpen(false) }}
+          onOpenPicker={() => { setPickerOpen(true); setChatOpen(false); setSettingsOpen(false); setSensorsOpen(false) }}
+          onOpenSensors={() => { setSensorsOpen(true); setChatOpen(false); setSettingsOpen(false); setPickerOpen(false) }}
           onClose={() => { setContextMenu(null); scheduleNextWalk(5_000) }}
         />
       )}
