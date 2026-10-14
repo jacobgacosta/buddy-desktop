@@ -21,7 +21,8 @@ export function detectIntent(
   const lowerWake = wakeWord.toLowerCase()
 
   if (lower.includes(lowerWake)) {
-    const text = transcript.replace(new RegExp(wakeWord, 'gi'), '').trim()
+    const escaped = wakeWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const text = transcript.replace(new RegExp(escaped, 'gi'), '').trim()
     return { type: 'wake_word', text }
   }
 
