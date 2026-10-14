@@ -16,7 +16,7 @@ import { useVoice } from './hooks/useVoice'
 import { useTTS } from './hooks/useTTS'
 import { CHARACTERS, findCharacter } from './characters/registry'
 import { createPhysics, tickPhysics, setWalkTarget, randomNearbyTarget } from './physics'
-import { gaussian, moodToParams, detectIntent } from '@buddy/core'
+import { gaussian, moodToParams, detectIntent, AmbientEngine } from '@buddy/core'
 import type { BehaviorParams, VoiceCommand } from '@buddy/core'
 import type { Avatar, Message } from '@buddy/types'
 import type { Position } from './physics'
@@ -111,6 +111,8 @@ function clampedWalkTarget(pos: Position, mon: MonitorBounds, radius = 350): Pos
   }
 }
 
+const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? 'http://localhost:7788'
+
 export function BuddyOverlay() {
   const [chatOpen, setChatOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -159,6 +161,10 @@ export function BuddyOverlay() {
     walkFrequencyMs: 8_000, walkSpeedPx: 80, walkRadius: 350,
     fidgetEnabled: false, fidgetIntervalMs: 0, fidgetRadiusPx: 0,
   })
+  const ambientRef = useRef<AmbientEngine | null>(null)
+  if (ambientRef.current === null) {
+    ambientRef.current = new AmbientEngine(SERVER_URL)
+  }
 
   const [avatarConfig, setAvatarConfig] = useState(() => loadConfig() ?? { name: DEFAULT_AVATAR.name, personality: DEFAULT_AVATAR.personality })
   const avatar = useMemo<Avatar>(() => ({ ...DEFAULT_AVATAR, id: currentCharacter.id, name: avatarConfig.name, personality: avatarConfig.personality }), [avatarConfig, currentCharacter.id])
@@ -215,6 +221,17 @@ export function BuddyOverlay() {
     prevZOrderRef.current = mood.zOrder
     void invoke('set_z_order', { onTop: mood.zOrder !== 'behind' })
   }, [mood.zOrder])
+
+  // Ambient awareness: silence→sleep, random LLM reactions
+  useEffect(() => {
+    if (!snapshot) return
+    ambientRef.current!.update(snapshot, mood, () => setSleep())
+      .then(reaction => {
+        if (!reaction) return
+        if (textEnabled) setBubbleText(reaction)
+        speak(reaction)
+      })
+  }, [snapshot, mood])
 
   const moveWindow = useCallback((x: number, y: number) => {
     void invoke('move_window', { x, y })
