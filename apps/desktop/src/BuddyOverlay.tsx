@@ -225,13 +225,14 @@ export function BuddyOverlay() {
   // Ambient awareness: silence→sleep, random LLM reactions
   useEffect(() => {
     if (!snapshot) return
+    if (stateRef.current === 'sleep') return
     ambientRef.current!.update(snapshot, mood, () => setSleep())
       .then(reaction => {
         if (!reaction) return
         if (textEnabled) setBubbleText(reaction)
         speak(reaction)
       })
-  }, [snapshot, mood])
+  }, [snapshot, mood, textEnabled, speak, setBubbleText])
 
   const moveWindow = useCallback((x: number, y: number) => {
     void invoke('move_window', { x, y })
