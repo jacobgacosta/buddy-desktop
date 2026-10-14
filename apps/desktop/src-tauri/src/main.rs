@@ -124,6 +124,13 @@ fn toggle_window_visibility(app: &AppHandle) {
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            // A second instance was launched — bring the existing window to front
+            if let Some(win) = app.get_webview_window("buddy") {
+                let _ = win.show();
+                let _ = win.set_focus();
+            }
+        }))
         .invoke_handler(tauri::generate_handler![
             passthrough::set_ignore_cursor,
             move_window,
