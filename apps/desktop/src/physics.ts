@@ -1,61 +1,59 @@
+import { smoothstep } from '@buddy/core'
+
 export interface Position { x: number; y: number }
+
 export interface PhysicsState {
   pos: Position
   vel: Position
   target: Position | null
+  isFidget: boolean
+  startPos: Position | null  // saved when target is set, used for easing
 }
 
 export function createPhysics(initial: Position): PhysicsState {
-  return { pos: initial, vel: { x: 0, y: 0 }, target: null }
+  return { pos: initial, vel: { x: 0, y: 0 }, target: null, isFidget: false, startPos: null }
 }
 
-const WALK_SPEED = 80  // px/s
-const ARRIVE_DIST = 2  // px
-
-// Avatar position bounds that keep the entire window on screen.
-// Window is WIN_W x WIN_H, avatar sits at (OFF_X, OFF_Y) within it.
-// wx = pos.x - offX  must be >= 0  → pos.x >= offX
-// wy = pos.y - offY  must be >= 0  → pos.y >= offY
-// wx + winW <= screenW             → pos.x <= screenW - winW + offX
-// wy + winH <= screenH             → pos.y <= screenH - winH + offY
-function clamp(v: number, lo: number, hi: number) {
-  return Math.max(lo, Math.min(hi, v))
-}
+const ARRIVE_DIST = 2
 
 export function tickPhysics(
   state: PhysicsState,
   dt: number,
-  speed = WALK_SPEED
+  speed: number,
 ): PhysicsState {
   const safeDt = Math.min(dt, 0.05)
-  const { pos, target } = state
+  const { pos, target, startPos } = state
+  if (!target) return { ...state, vel: { x: 0, y: 0 } }
 
-  if (target) {
-    const dx = target.x - pos.x
-    const dy = target.y - pos.y
-    const dist = Math.sqrt(dx * dx + dy * dy)
-    if (dist < ARRIVE_DIST) {
-      return { pos: target, vel: { x: 0, y: 0 }, target: null }
-    }
-    return {
-      pos: {
-        x: pos.x + (dx / dist) * speed * safeDt,
-        y: pos.y + (dy / dist) * speed * safeDt,
-      },
-      vel: { x: (dx / dist) * speed, y: (dy / dist) * speed },
-      target,
-    }
+  const dx = target.x - pos.x
+  const dy = target.y - pos.y
+  const dist = Math.sqrt(dx * dx + dy * dy)
+
+  if (dist < ARRIVE_DIST) {
+    return { ...state, pos: target, vel: { x: 0, y: 0 }, target: null, startPos: null }
   }
 
-  return { pos, vel: { x: 0, y: 0 }, target: null }
+  const totalDist = startPos
+    ? Math.sqrt((target.x - startPos.x) ** 2 + (target.y - startPos.y) ** 2)
+    : dist
+  const progress = totalDist > 0 ? Math.max(0, Math.min(1, 1 - dist / totalDist)) : 0
+  const speedMult = 0.25 + 0.75 * Math.sin(smoothstep(progress) * Math.PI)
+  const effectiveSpeed = speed * speedMult
+
+  return {
+    ...state,
+    pos: {
+      x: pos.x + (dx / dist) * effectiveSpeed * safeDt,
+      y: pos.y + (dy / dist) * effectiveSpeed * safeDt,
+    },
+    vel: { x: (dx / dist) * effectiveSpeed, y: (dy / dist) * effectiveSpeed },
+  }
 }
 
 export function setWalkTarget(state: PhysicsState, target: Position): PhysicsState {
-  return { ...state, target }
+  return { ...state, target, startPos: state.pos }
 }
 
-// Random target near the current position — safe for multi-monitor setups.
-// Never uses absolute screen bounds so the character stays on whichever monitor it's on.
 export function randomNearbyTarget(current: Position, radius = 350): Position {
   const angle = Math.random() * 2 * Math.PI
   const dist = 80 + Math.random() * radius
