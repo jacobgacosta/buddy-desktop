@@ -9,6 +9,7 @@ import { SettingsPanel } from './SettingsPanel'
 import { SensorsPanel } from './SensorsPanel'
 import { CharacterPicker } from './CharacterPicker'
 import { useBuddy } from './hooks/useBuddy'
+import { SpeechBubble } from './SpeechBubble'
 import { useSensors } from './hooks/useSensors'
 import { useMood } from './hooks/useMood'
 import { CHARACTERS, findCharacter } from './characters/registry'
@@ -119,6 +120,7 @@ export function BuddyOverlay() {
   )
   const [animVersion, setAnimVersion] = useState(0)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
+  const [bubbleText, setBubbleText] = useState<string | null>(null)
 
   // Avatar screen position on start: 20px from right/bottom edge.
   // pos.(x,y) = avatar screen coords; window pos = (pos.x - OFF_X, pos.y - OFF_Y).
@@ -160,7 +162,8 @@ export function BuddyOverlay() {
   }, [])
 
   const [initialHistory] = useState(loadHistory)
-  const { state, history, thinking, sendMessage, wakeUp, startWalking, stopWalking, stopReacting } = useBuddy(avatar, initialHistory)
+  const { state, history, thinking, sendMessage, wakeUp, startWalking, stopWalking, stopReacting, setSleep } =
+    useBuddy(avatar, initialHistory, (text) => setBubbleText(text))
   const stateRef = useRef(state)
   stateRef.current = state
 
@@ -407,9 +410,9 @@ export function BuddyOverlay() {
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    const MENU_W = 170, MENU_H = 120
+    const MENU_W = 170, MENU_H = 165
     const x = Math.min(e.clientX, WIN_W - MENU_W - 4)
-    const y = Math.min(e.clientY, WIN_H - MENU_H - 4)
+    const y = Math.max(PANEL_TOP, Math.min(e.clientY, WIN_H - MENU_H - 4))
     setContextMenu({ x, y })
   }, [])
 
@@ -427,7 +430,7 @@ export function BuddyOverlay() {
   }, [wakeUp, stopWalking, scheduleNextWalk])
 
   const panelSlot: React.CSSProperties = {
-    position: 'absolute', top: PANEL_TOP, left: 6, right: 6, bottom: 6,
+    position: 'absolute', top: PANEL_TOP, left: 6, right: 6, bottom: 6, zIndex: 20,
   }
 
   return (
@@ -497,6 +500,9 @@ export function BuddyOverlay() {
         onClick={handleClick}
         onContextMenu={handleContextMenu}
       >
+        {bubbleText && (
+          <SpeechBubble text={bubbleText} onDone={() => setBubbleText(null)} />
+        )}
         <CharacterRenderer
           key={`${currentCharacter.id}-${animVersion}`}
           character={currentCharacter}

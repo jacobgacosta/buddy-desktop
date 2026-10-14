@@ -4,8 +4,9 @@ import { AvatarStateMachine } from '@buddy/core'
 import type { Avatar, Message, AvatarState } from '@buddy/types'
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? 'http://localhost:7788'
+const MAX_HISTORY = 30
 
-export function useBuddy(avatar: Avatar, initialHistory: Message[] = []) {
+export function useBuddy(avatar: Avatar, initialHistory: Message[] = [], onResponse?: (text: string) => void) {
   const [state, setState] = useState<AvatarState>('idle')
   const [history, setHistory] = useState<Message[]>(initialHistory)
   const [thinking, setThinking] = useState(false)
@@ -52,7 +53,8 @@ export function useBuddy(avatar: Avatar, initialHistory: Message[] = []) {
         avatarId: avatar.id,
         timestamp: Date.now(),
       }
-      setHistory(h => [...h, assistantMsg])
+      setHistory(h => [...h, assistantMsg].slice(-MAX_HISTORY))
+      onResponse?.(resp.content)
       sm.current!.receiveResponse()
       if (talkTimerRef.current) clearTimeout(talkTimerRef.current)
       talkTimerRef.current = setTimeout(() => sm.current!.finishTalking(), 4000)
@@ -88,6 +90,7 @@ export function useBuddy(avatar: Avatar, initialHistory: Message[] = []) {
   const startWalking = useCallback(() => sm.current!.startWalking(), [])
   const stopWalking = useCallback(() => sm.current!.stopWalking(), [])
   const stopReacting = useCallback(() => sm.current!.finishReacting(), [])
+  const setSleep = useCallback(() => sm.current!.setSleep(), [])
 
-  return { state, history, thinking, sendMessage, wakeUp, startWalking, stopWalking, stopReacting }
+  return { state, history, thinking, sendMessage, wakeUp, startWalking, stopWalking, stopReacting, setSleep }
 }
