@@ -12,10 +12,12 @@ import { useBuddy } from './hooks/useBuddy'
 import { SpeechBubble } from './SpeechBubble'
 import { useSensors } from './hooks/useSensors'
 import { useMood } from './hooks/useMood'
+import { useVoice } from './hooks/useVoice'
+import { useTTS } from './hooks/useTTS'
 import { CHARACTERS, findCharacter } from './characters/registry'
 import { createPhysics, tickPhysics, setWalkTarget, randomNearbyTarget } from './physics'
-import { gaussian, moodToParams } from '@buddy/core'
-import type { BehaviorParams } from '@buddy/core'
+import { gaussian, moodToParams, detectIntent } from '@buddy/core'
+import type { BehaviorParams, VoiceCommand } from '@buddy/core'
 import type { Avatar, Message } from '@buddy/types'
 import type { Position } from './physics'
 
@@ -121,6 +123,12 @@ export function BuddyOverlay() {
   const [animVersion, setAnimVersion] = useState(0)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [bubbleText, setBubbleText] = useState<string | null>(null)
+  const [ttsEnabled, setTtsEnabled] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('buddy-tts-voice') ?? 'false') } catch { return false }
+  })
+  const [textEnabled, setTextEnabled] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('buddy-tts-text') ?? 'true') } catch { return true }
+  })
 
   // Avatar screen position on start: 20px from right/bottom edge.
   // pos.(x,y) = avatar screen coords; window pos = (pos.x - OFF_X, pos.y - OFF_Y).
@@ -161,9 +169,39 @@ export function BuddyOverlay() {
     try { localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg)) } catch {}
   }, [])
 
+  const { speak } = useTTS(ttsEnabled)
+
   const [initialHistory] = useState(loadHistory)
   const { state, history, thinking, sendMessage, wakeUp, startWalking, stopWalking, stopReacting, setSleep } =
-    useBuddy(avatar, initialHistory, (text) => setBubbleText(text))
+    useBuddy(avatar, initialHistory, (text) => {
+      if (textEnabled) setBubbleText(text)
+      speak(text)
+    })
+
+  const handleCommand = useCallback((cmd: VoiceCommand) => {
+    switch (cmd.action) {
+      case 'sleep':   setSleep(); break
+      case 'wakeUp':  wakeUp(); break
+      case 'walk':    startWalking(); break
+      case 'react':   stopReacting(); break
+    }
+    if (cmd.responses?.length) {
+      const phrase = cmd.responses[Math.floor(Math.random() * cmd.responses.length)]
+      if (textEnabled) setBubbleText(phrase)
+      speak(phrase)
+    }
+  }, [setSleep, wakeUp, startWalking, stopReacting, textEnabled, speak])
+
+  useVoice(useCallback((transcript: string) => {
+    const wakeWord = currentCharacter.wakeWord ?? 'buddy'
+    const intent = detectIntent(transcript, wakeWord, currentCharacter.commands ?? [])
+    if (intent.type === 'wake_word' && intent.text) {
+      sendMessage(intent.text)
+    } else if (intent.type === 'command' && intent.command) {
+      handleCommand(intent.command)
+    }
+  }, [currentCharacter, sendMessage, handleCommand]))
+
   const stateRef = useRef(state)
   stateRef.current = state
 
