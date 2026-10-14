@@ -3,8 +3,9 @@
 mod passthrough;
 mod sidecar;
 mod sensors;
+mod voice;
 
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
@@ -20,6 +21,26 @@ fn move_window(window: tauri::Window, x: f64, y: f64) -> Result<(), String> {
 #[tauri::command]
 fn set_z_order(window: tauri::Window, on_top: bool) -> Result<(), String> {
     window.set_always_on_top(on_top).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_audio_devices() -> Vec<String> {
+    use cpal::traits::{DeviceTrait, HostTrait};
+    let host = cpal::default_host();
+    host.input_devices()
+        .map(|devs| devs.filter_map(|d| d.name().ok()).collect())
+        .unwrap_or_default()
+}
+
+#[tauri::command]
+fn set_mic_device(
+    config: tauri::State<'_, Arc<Mutex<sensors::MicConfig>>>,
+    device_name: String,
+) -> Result<(), String> {
+    let mut c = config.lock().unwrap();
+    c.desired_device = if device_name.is_empty() { None } else { Some(device_name) };
+    c.restart = true;
+    Ok(())
 }
 
 #[tauri::command]
@@ -109,11 +130,15 @@ fn main() {
             get_monitor_bounds,
             set_anchor,
             set_z_order,
+            get_audio_devices,
+            set_mic_device,
         ])
         .setup(|app| {
             app.manage(Mutex::new(TrayState { is_anchored: false }));
             sidecar::launch_sidecar(app);
-            sensors::launch_sensors(app.handle().clone());
+            let (mic_config, sensor_state) = sensors::launch_sensors(app.handle().clone());
+            app.manage(mic_config);
+            voice::launch_voice(app.handle().clone(), sensor_state);
 
             let icon = make_tray_icon();
 
