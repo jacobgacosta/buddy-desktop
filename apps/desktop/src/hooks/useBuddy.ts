@@ -20,6 +20,9 @@ export function useBuddy(avatar: Avatar, initialHistory: Message[] = [], onRespo
   const historyRef = useRef<Message[]>([])
   useEffect(() => { historyRef.current = history }, [history])
 
+  const onResponseRef = useRef(onResponse)
+  useEffect(() => { onResponseRef.current = onResponse }, [onResponse])
+
   const talkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
     return () => { if (talkTimerRef.current) clearTimeout(talkTimerRef.current) }
@@ -54,7 +57,7 @@ export function useBuddy(avatar: Avatar, initialHistory: Message[] = [], onRespo
         timestamp: Date.now(),
       }
       setHistory(h => [...h, assistantMsg].slice(-MAX_HISTORY))
-      onResponse?.(resp.content)
+      onResponseRef.current?.(resp.content)
       sm.current!.receiveResponse()
       if (talkTimerRef.current) clearTimeout(talkTimerRef.current)
       talkTimerRef.current = setTimeout(() => sm.current!.finishTalking(), 4000)
