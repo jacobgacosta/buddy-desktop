@@ -14,6 +14,8 @@ pub(crate) struct InputState {
     pub(crate) recording: bool,
     pub(crate) recording_buffer: Vec<f32>,
     pub(crate) recording_sample_rate: u32,
+    ambient_active_since: Option<u64>,   // ms timestamp when sound started
+    ambient_silent_since: Option<u64>,   // ms timestamp when silence started
 }
 
 /// Shared config for mic device switching — managed as Tauri state.
@@ -41,6 +43,8 @@ pub struct SensorPayload {
     pub hour: u8,
     pub is_night: bool,
     pub is_weekend: bool,
+    pub ambient_type: String,       // "silence" | "speech" | "music"
+    pub ambient_duration_s: u64,
 }
 
 #[derive(Serialize, Clone)]
@@ -119,6 +123,28 @@ pub fn launch_sensors(app: AppHandle) -> (Arc<Mutex<MicConfig>>, Arc<Mutex<Input
             let hour = ((secs % 86400) / 3600) as u8;
             let day_of_week = (secs / 86400 + 4) % 7;
 
+            // Ambient classification
+            let (ambient_type, ambient_duration_s) = {
+                let level = s.mic_level;
+                if level < 0.005 {
+                    let since = s.ambient_silent_since.unwrap_or(now);
+                    s.ambient_silent_since = Some(since);
+                    s.ambient_active_since = None;
+                    let dur = now.saturating_sub(since) / 1000;
+                    ("silence".to_string(), dur)
+                } else {
+                    let since = s.ambient_active_since.unwrap_or(now);
+                    s.ambient_active_since = Some(since);
+                    s.ambient_silent_since = None;
+                    let dur = now.saturating_sub(since) / 1000;
+                    if dur >= 4 {
+                        ("music".to_string(), dur)
+                    } else {
+                        ("speech".to_string(), dur)
+                    }
+                }
+            };
+
             SensorPayload {
                 timestamp: now,
                 mic_active: s.mic_active,
@@ -131,6 +157,8 @@ pub fn launch_sensors(app: AppHandle) -> (Arc<Mutex<MicConfig>>, Arc<Mutex<Input
                 hour,
                 is_night: hour < 6 || hour >= 22,
                 is_weekend: day_of_week == 0 || day_of_week == 6,
+                ambient_type,
+                ambient_duration_s,
             }
         };
 

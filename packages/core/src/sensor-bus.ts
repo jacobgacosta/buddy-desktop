@@ -1,23 +1,26 @@
 export type InputLevel = 'idle' | 'light' | 'heavy'
+export type AmbientType = 'silence' | 'speech' | 'music'
 
 export interface SensorSnapshot {
   timestamp: number
   mic: {
     active: boolean
-    level: number       // 0-1 RMS volume
+    level: number
     deviceName: string
   }
   input: {
-    keyRate: number     // keypresses/min in last 60s
+    keyRate: number
     mouseDistance: number
     level: InputLevel
-    idleDuration: number // ms since last input
+    idleDuration: number
   }
   time: {
     hour: number
-    isNight: boolean    // 22h-6h
+    isNight: boolean
     isWeekend: boolean
   }
+  ambientType: AmbientType
+  ambientDurationS: number
 }
 
 export function classifyInput(keyRate: number, idleDuration: number): InputLevel {

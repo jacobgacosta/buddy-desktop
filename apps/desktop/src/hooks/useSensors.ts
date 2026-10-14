@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { listen } from '@tauri-apps/api/event'
-import type { SensorSnapshot } from '@buddy/core'
+import type { SensorSnapshot, AmbientType } from '@buddy/core'
 
 interface RawPayload {
   timestamp: number
@@ -14,6 +14,8 @@ interface RawPayload {
   hour: number
   is_night: boolean
   is_weekend: boolean
+  ambient_type: string
+  ambient_duration_s: number
 }
 
 export function useSensors(): SensorSnapshot | null {
@@ -27,6 +29,8 @@ export function useSensors(): SensorSnapshot | null {
         mic:   { active: p.mic_active, level: p.mic_level, deviceName: p.mic_device_name },
         input: { keyRate: p.key_rate, mouseDistance: p.mouse_distance, level: p.input_level, idleDuration: p.idle_duration_ms },
         time:  { hour: p.hour, isNight: p.is_night, isWeekend: p.is_weekend },
+        ambientType: (p.ambient_type as AmbientType) ?? 'silence',
+        ambientDurationS: p.ambient_duration_s ?? 0,
       })
     }).then(fn => { unlisten = fn })
     return () => { unlisten?.() }
