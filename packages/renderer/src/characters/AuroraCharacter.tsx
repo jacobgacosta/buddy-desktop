@@ -134,26 +134,29 @@ export function AuroraCharacter({ state, size }: Props) {
       ctx.save()
       ctx.translate(cx, cy)
 
-      ctx.shadowColor = `rgba(${mr},${mg},${mb},0.6)`
-      ctx.shadowBlur = halfThick * 3 * dpr
-      for (let i = 0; i < 8; i++) {
-        const frac = (i + 0.5) / 8
-        const angle = startAngle + frac * arcLen
-        let color = 'rgba(0,0,0,0)'
-        for (let s = 0; s < stops.length - 1; s++) {
-          if (frac >= stops[s].pos && frac <= stops[s+1].pos) {
-            color = lerpRgba(stops[s].color, stops[s+1].color, (frac - stops[s].pos) / (stops[s+1].pos - stops[s].pos))
-            break
+      // fake glow: 3 wide passes at decreasing opacity (no shadowBlur — breaks transparent windows)
+      for (let pass = 0; pass < 3; pass++) {
+        const widthMult = [3.5, 2.2, 1.4][pass]
+        const alphaMult = [0.15, 0.25, 0.35][pass]
+        for (let i = 0; i < 8; i++) {
+          const frac = (i + 0.5) / 8
+          const angle = startAngle + frac * arcLen
+          let baseColor: RGBA = stops[0].color
+          for (let s = 0; s < stops.length - 1; s++) {
+            if (frac >= stops[s].pos && frac <= stops[s+1].pos) {
+              const t2 = (frac - stops[s].pos) / (stops[s+1].pos - stops[s].pos)
+              baseColor = stops[s].color.map((v, i) => v + (stops[s+1].color[i] - v) * t2) as RGBA
+              break
+            }
           }
+          ctx.beginPath()
+          ctx.arc(0, 0, radius, angle, angle + arcLen / 8 + 0.01)
+          ctx.strokeStyle = `rgba(${baseColor[0]|0},${baseColor[1]|0},${baseColor[2]|0},${(baseColor[3] * alphaMult).toFixed(3)})`
+          ctx.lineWidth = halfThick * widthMult * dpr
+          ctx.lineCap = 'round'
+          ctx.stroke()
         }
-        ctx.beginPath()
-        ctx.arc(0, 0, radius, angle, angle + arcLen / 8 + 0.01)
-        ctx.strokeStyle = color
-        ctx.lineWidth = halfThick * 2.8 * dpr
-        ctx.lineCap = 'round'
-        ctx.stroke()
       }
-      ctx.shadowBlur = 0
 
       for (let i = 0; i < 40; i++) {
         const frac = i / 40

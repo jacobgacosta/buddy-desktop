@@ -63,7 +63,7 @@ export function SettingsPanel({ avatarName, avatarPersonality, textEnabled, voic
             />
           </label>
           <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
-            <span style={{ color: '#d1d5db', fontSize: 12 }}>Voz (Piper)</span>
+            <span style={{ color: '#d1d5db', fontSize: 12 }}>Voz (ElevenLabs)</span>
             <input
               type="checkbox"
               checked={voiceEnabled}

@@ -13,9 +13,19 @@ pub fn launch_sidecar(app: &tauri::App) {
     let sidecar_path = resource_path.join(binary_name());
     let avatars_dir = resource_path.join("avatars");
 
+    let ollama_url = std::env::var("OLLAMA_URL")
+        .unwrap_or_else(|_| "http://localhost:11434".into());
+    let mood_url = std::env::var("MOOD_URL").unwrap_or_else(|_| ollama_url.clone());
+    let llm_model = std::env::var("LLM_MODEL")
+        .or_else(|_| std::env::var("OLLAMA_MODEL"))
+        .unwrap_or_else(|_| "llama3.2:3b".into());
+
     let child = match std::process::Command::new(&sidecar_path)
         .env("PORT", "7788")
         .env("AVATARS_DIR", avatars_dir.to_str().unwrap_or("avatars"))
+        .env("OLLAMA_URL", &ollama_url)
+        .env("MOOD_URL", &mood_url)
+        .env("LLM_MODEL", &llm_model)
         .spawn()
     {
         Ok(c) => c,

@@ -1,3 +1,6 @@
+import { useEffect, useState } from 'react'
+import { listen } from '@tauri-apps/api/event'
+import { invoke } from '@tauri-apps/api/core'
 import type { SensorSnapshot, Mood } from '@buddy/core'
 
 interface Props {
@@ -6,7 +9,6 @@ interface Props {
   onClose: () => void
 }
 
-const dark = '#1f2937'
 const card: React.CSSProperties = {
   background: 'rgba(255,255,255,0.04)',
   borderRadius: 10,
@@ -27,11 +29,11 @@ const MOOD_COLOR: Record<string, string> = {
 }
 
 function VolumeBar({ level }: { level: number }) {
-  const pct = Math.min(100, Math.round(level * 100 * 6))  // amplify — mic RMS is usually tiny
+  const pct = Math.min(100, Math.round(level * 100 * 6))
   const color = pct > 60 ? '#f59e0b' : pct > 20 ? '#34d399' : '#4b5563'
   return (
     <div style={{ height: 6, background: '#1f2937', borderRadius: 3, overflow: 'hidden' }}>
-      <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 3, transition: 'width 0.3s ease' }} />
+      <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 3, transition: 'width 0.1s ease' }} />
     </div>
   )
 }
@@ -50,6 +52,40 @@ function formatExpiry(expiresAt: number): string {
 }
 
 export function SensorsPanel({ snapshot, mood, onClose }: Props) {
+  const [liveLevel, setLiveLevel] = useState(0)
+  const [liveActive, setLiveActive] = useState(false)
+  const [devices, setDevices] = useState<string[]>([])
+  const [selectedDevice, setSelectedDevice] = useState('')
+
+  // Real-time mic level from 200ms events
+  useEffect(() => {
+    let unlisten: (() => void) | undefined
+    listen<{ level: number; active: boolean }>('mic-level', ({ payload }) => {
+      setLiveLevel(payload.level)
+      setLiveActive(payload.active)
+    }).then(fn => { unlisten = fn })
+    return () => { unlisten?.() }
+  }, [])
+
+  // Load available devices on mount
+  useEffect(() => {
+    invoke<string[]>('get_audio_devices').then(devs => {
+      setDevices(devs)
+    })
+  }, [])
+
+  // Sync selected device from snapshot when it changes
+  useEffect(() => {
+    if (snapshot?.mic.deviceName && !selectedDevice) {
+      setSelectedDevice(snapshot.mic.deviceName)
+    }
+  }, [snapshot?.mic.deviceName])
+
+  const handleDeviceChange = (name: string) => {
+    setSelectedDevice(name)
+    invoke('set_mic_device', { deviceName: name })
+  }
+
   return (
     <div style={{
       width: '100%', height: '100%',
@@ -69,16 +105,33 @@ export function SensorsPanel({ snapshot, mood, onClose }: Props) {
       {/* Mic */}
       <div style={card}>
         <span style={label}>🎤 Micrófono</span>
-        <span style={{ ...value, fontSize: 11, color: '#9ca3af', wordBreak: 'break-word' }}>
-          {snapshot?.mic.deviceName || 'Esperando primer snapshot…'}
-        </span>
-        <VolumeBar level={snapshot?.mic.level ?? 0} />
+        {/* Device picker */}
+        {devices.length > 0 ? (
+          <select
+            value={selectedDevice}
+            onChange={e => handleDeviceChange(e.target.value)}
+            style={{
+              background: '#1f2937', border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: 6, color: '#e5e7eb', fontSize: 11,
+              padding: '3px 6px', cursor: 'pointer', width: '100%',
+            }}
+          >
+            {devices.map(d => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+        ) : (
+          <span style={{ ...value, fontSize: 11, color: '#9ca3af', wordBreak: 'break-word' }}>
+            {snapshot?.mic.deviceName || 'Esperando primer snapshot…'}
+          </span>
+        )}
+        <VolumeBar level={liveLevel} />
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: 11, color: snapshot?.mic.active ? '#34d399' : '#6b7280' }}>
-            {snapshot?.mic.active ? '● Activo' : '○ Silencio'}
+          <span style={{ fontSize: 11, color: liveActive ? '#34d399' : '#6b7280' }}>
+            {liveActive ? '● Activo' : '○ Silencio'}
           </span>
           <span style={{ fontSize: 11, color: '#6b7280' }}>
-            RMS {((snapshot?.mic.level ?? 0) * 100).toFixed(1)}%
+            RMS {(liveLevel * 100).toFixed(1)}%
           </span>
         </div>
       </div>

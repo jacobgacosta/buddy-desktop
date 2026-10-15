@@ -122,6 +122,22 @@ export function CharacterPicker({ characters, currentId, onSelect, onAnimChange,
               </select>
             </div>
           ))}
+          <button
+            onClick={() => {
+              try { localStorage.removeItem(`buddy-anims-${selected.id}`) } catch {}
+              setAnimConfig(loadAnimConfig(selected))
+              onAnimChange?.()
+            }}
+            style={{
+              marginTop: 2, fontSize: 9, padding: '3px 8px',
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 5, color: '#6b7280', cursor: 'pointer',
+              alignSelf: 'flex-end',
+            }}
+          >
+            Reset animaciones
+          </button>
         </div>
       )}
     </div>

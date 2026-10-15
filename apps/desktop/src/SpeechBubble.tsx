@@ -43,7 +43,6 @@ export function SpeechBubble({ text, onDone }: Props) {
   return (
     <div style={{
       position: 'relative',
-      marginTop: 8,
       maxWidth: 220,
       background: 'rgba(14,14,26,0.95)',
       border: '1px solid rgba(255,255,255,0.1)',

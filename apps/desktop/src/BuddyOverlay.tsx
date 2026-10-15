@@ -179,10 +179,12 @@ export function BuddyOverlay() {
 
   const [initialHistory] = useState(loadHistory)
   const { state, history, thinking, sendMessage, wakeUp, startWalking, stopWalking, stopReacting, setSleep } =
-    useBuddy(avatar, initialHistory, (text) => {
-      if (textEnabled) setBubbleText(text)
-      speak(text)
-    })
+    useBuddy(
+      avatar,
+      initialHistory,
+      (text) => { if (textEnabled) setBubbleText(text); speak(text) },
+      (text) => { if (textEnabled) setBubbleText(text) },
+    )
 
   const handleCommand = useCallback((cmd: VoiceCommand) => {
     switch (cmd.action) {
@@ -548,7 +550,7 @@ export function BuddyOverlay() {
         />
       )}
       {bubbleText && (
-        <div style={{ position: 'absolute', top: SPRITE, left: 0, right: 0, zIndex: 50, pointerEvents: 'none', display: 'flex', justifyContent: 'center' }}>
+        <div style={{ position: 'absolute', top: SPRITE - 44, left: 0, right: 0, zIndex: 50, pointerEvents: 'none', display: 'flex', justifyContent: 'center' }}>
           <SpeechBubble text={bubbleText} onDone={() => setBubbleText(null)} />
         </div>
       )}

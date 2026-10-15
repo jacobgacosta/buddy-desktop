@@ -6,7 +6,7 @@ import type { Avatar, Message, AvatarState } from '@buddy/types'
 const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? 'http://localhost:7788'
 const MAX_HISTORY = 30
 
-export function useBuddy(avatar: Avatar, initialHistory: Message[] = [], onResponse?: (text: string) => void) {
+export function useBuddy(avatar: Avatar, initialHistory: Message[] = [], onResponse?: (text: string) => void, onError?: (text: string) => void) {
   const [state, setState] = useState<AvatarState>('idle')
   const [history, setHistory] = useState<Message[]>(initialHistory)
   const [thinking, setThinking] = useState(false)
@@ -22,6 +22,8 @@ export function useBuddy(avatar: Avatar, initialHistory: Message[] = [], onRespo
 
   const onResponseRef = useRef(onResponse)
   useEffect(() => { onResponseRef.current = onResponse }, [onResponse])
+  const onErrorRef = useRef(onError)
+  useEffect(() => { onErrorRef.current = onError }, [onError])
 
   const talkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
@@ -61,16 +63,20 @@ export function useBuddy(avatar: Avatar, initialHistory: Message[] = [], onRespo
       sm.current!.receiveResponse()
       if (talkTimerRef.current) clearTimeout(talkTimerRef.current)
       talkTimerRef.current = setTimeout(() => sm.current!.finishTalking(), 4000)
-    } catch (err) {
+    } catch {
+      const fallback = 'No puedo conectarme en este momento.'
       const errMsg: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: `⚠️ Error: ${err instanceof Error ? err.message : String(err)}`,
+        content: fallback,
         avatarId: avatar.id,
         timestamp: Date.now(),
       }
       setHistory(h => [...h, errMsg])
-      sm.current!.finishTalking()
+      onErrorRef.current?.(fallback)
+      sm.current!.receiveResponse()
+      if (talkTimerRef.current) clearTimeout(talkTimerRef.current)
+      talkTimerRef.current = setTimeout(() => sm.current!.finishTalking(), 4000)
     } finally {
       setThinking(false)
     }
