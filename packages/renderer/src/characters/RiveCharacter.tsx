@@ -1,5 +1,5 @@
 import { useRive, Layout, Fit, Alignment } from '@rive-app/react-canvas'
-import { useEffect, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import type { AvatarState, CharacterManifest } from '@buddy/types'
 
 interface Props {
@@ -25,40 +25,40 @@ function loadSavedAnims(character: CharacterManifest): Record<AvatarState, strin
   return base
 }
 
+// One Rive instance per animation — remounts via key when anim changes.
+// This is the only reliable way to stop a looping Rive animation in v4.
+function RiveAnim({ src, anim, size }: { src: string; anim: string; size: number }) {
+  const { RiveComponent } = useRive({
+    src,
+    animations: anim,
+    autoplay: true,
+    layout: new Layout({ fit: Fit.Contain, alignment: Alignment.Center }),
+  })
+  return <RiveComponent style={{ width: size, height: size, display: 'block' }} />
+}
+
 export function RiveCharacter({ character, state, size, onStateComplete }: Props) {
   const anims = loadSavedAnims(character)
   const available = character.availableAnims ?? []
-  const prevAnimRef = useRef<string>('')
 
   const resolve = (name: string): string => {
     if (!available.length) return name
     return [name, `${name}9`, `${name}9x`, `${name}3609`].find(n => available.includes(n)) ?? name
   }
 
-  const { RiveComponent, rive } = useRive({
-    src: character.riveFile ?? '',
-    animations: resolve(anims.idle),
-    autoplay: true,
-    layout: new Layout({ fit: Fit.Contain, alignment: Alignment.Center }),
-  })
+  const [resolvedAnim, setResolvedAnim] = useState(() => resolve(anims[state]))
 
   useEffect(() => {
-    if (!rive) return
-    // stop any state machines that auto-started so direct animations take over
-    rive.stateMachineNames?.forEach(sm => { try { rive.stop(sm) } catch {} })
-    const next = resolve(anims[state])
-    prevAnimRef.current = next
-    rive.play(next)
-
+    setResolvedAnim(resolve(anims[state]))
     if (state === 'react_happy' && onStateComplete) {
       const t = setTimeout(onStateComplete, 1200)
       return () => clearTimeout(t)
     }
-  }, [state, rive])
+  }, [state])
 
   return (
     <div style={{ width: size, height: size, flexShrink: 0 }}>
-      <RiveComponent style={{ width: size, height: size, display: 'block' }} />
+      <RiveAnim key={resolvedAnim} src={character.riveFile ?? ''} anim={resolvedAnim} size={size} />
     </div>
   )
 }
