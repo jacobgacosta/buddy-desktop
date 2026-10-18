@@ -108,6 +108,14 @@ export function AuroraCharacter({ state, size }: Props) {
     const cfg0 = STATE_CONFIG[stateRef.current]
     for (let i = 0; i < cfg0.sparkCount; i++) spawnSpark(cfg0)
 
+    // Live interpolated config — lerps toward target each frame instead of snapping
+    const live = {
+      speedMult: cfg0.speedMult,
+      sparkCount: cfg0.sparkCount,
+      coreBrightness: cfg0.coreBrightness,
+      palette: cfg0.palette.map(c => [c[0], c[1], c[2]] as [number, number, number]),
+    }
+
     const lerpRgba = (a: RGBA, b: RGBA, t: number) => {
       return `rgba(${(a[0]+(b[0]-a[0])*t)|0},${(a[1]+(b[1]-a[1])*t)|0},${(a[2]+(b[2]-a[2])*t)|0},${(a[3]+(b[3]-a[3])*t).toFixed(3)})`
     }
@@ -231,7 +239,21 @@ export function AuroraCharacter({ state, size }: Props) {
       lastFrame = now
       t += 0.033
 
-      const cfg = STATE_CONFIG[stateRef.current]
+      // Lerp live config toward target — smooth ~700ms transition between states
+      const target = STATE_CONFIG[stateRef.current]
+      const L = 0.06
+      live.speedMult      += (target.speedMult      - live.speedMult)      * L
+      live.coreBrightness += (target.coreBrightness - live.coreBrightness) * L
+      live.sparkCount     += (target.sparkCount     - live.sparkCount)     * L
+      for (let i = 0; i < live.palette.length; i++) {
+        const tc = target.palette[i]
+        const lc = live.palette[i]
+        lc[0] += (tc[0] - lc[0]) * L
+        lc[1] += (tc[1] - lc[1]) * L
+        lc[2] += (tc[2] - lc[2]) * L
+      }
+      const cfg = { ...live, sparkCount: Math.round(live.sparkCount) }
+
       ctx.clearRect(0, 0, S, S)
       drawCore(t, cfg)
       for (const ring of rings) drawRing(ring, t, cfg)
