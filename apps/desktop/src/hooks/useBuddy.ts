@@ -44,41 +44,58 @@ export function useBuddy(avatar: Avatar, initialHistory: Message[] = [], onRespo
     setThinking(true)
     sm.current!.sendMessage()
 
+    const assistantId = crypto.randomUUID()
+
     try {
-      const resp = await client.current!.chat({
+      const stream = client.current!.chatStream({
         message: text,
         avatarId: avatar.id,
         personality: avatar.personality,
         history: [...historyRef.current, userMsg],
       })
-      const assistantMsg: Message = {
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        content: resp.content,
-        avatarId: avatar.id,
-        timestamp: Date.now(),
+
+      let full = ''
+      let firstChunk = true
+
+      for await (const delta of stream) {
+        if (firstChunk) {
+          // First token arrived: show message, hide thinking indicator
+          firstChunk = false
+          setThinking(false)
+          setHistory(h => [...h, {
+            id: assistantId,
+            role: 'assistant' as const,
+            content: delta,
+            avatarId: avatar.id,
+            timestamp: Date.now(),
+          }])
+        } else {
+          setHistory(h => h.map(m =>
+            m.id === assistantId ? { ...m, content: m.content + delta } : m
+          ))
+        }
+        full += delta
       }
-      setHistory(h => [...h, assistantMsg].slice(-MAX_HISTORY))
-      onResponseRef.current?.(resp.content)
+
+      setHistory(h => h.slice(-MAX_HISTORY))
+      onResponseRef.current?.(full)
       sm.current!.receiveResponse()
       if (talkTimerRef.current) clearTimeout(talkTimerRef.current)
       talkTimerRef.current = setTimeout(() => sm.current!.finishTalking(), 4000)
     } catch {
+      setThinking(false)
       const fallback = 'No puedo conectarme en este momento.'
-      const errMsg: Message = {
-        id: crypto.randomUUID(),
-        role: 'assistant',
+      setHistory(h => [...h, {
+        id: assistantId,
+        role: 'assistant' as const,
         content: fallback,
         avatarId: avatar.id,
         timestamp: Date.now(),
-      }
-      setHistory(h => [...h, errMsg])
+      }])
       onErrorRef.current?.(fallback)
       sm.current!.receiveResponse()
       if (talkTimerRef.current) clearTimeout(talkTimerRef.current)
       talkTimerRef.current = setTimeout(() => sm.current!.finishTalking(), 4000)
-    } finally {
-      setThinking(false)
     }
   }, [avatar])
 

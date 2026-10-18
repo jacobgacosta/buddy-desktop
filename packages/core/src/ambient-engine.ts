@@ -16,9 +16,9 @@ function buildContext(snapshot: SensorSnapshot, mood: Mood): string {
                 : h < 22  ? 'en la noche'
                 :            'muy noche'
 
-  const activityCtx = snapshot.inputLevel === 'heavy'
-    ? `el usuario está tecleando intensamente (${Math.round(snapshot.keyRate)} teclas/min)`
-    : snapshot.inputLevel === 'light'
+  const activityCtx = snapshot.input.level === 'heavy'
+    ? `el usuario está tecleando intensamente (${Math.round(snapshot.input.keyRate)} teclas/min)`
+    : snapshot.input.level === 'light'
     ? 'el usuario está trabajando tranquilo'
     : 'el usuario está idle, sin hacer nada'
 

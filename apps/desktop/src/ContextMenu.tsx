@@ -8,6 +8,7 @@ interface Props {
   onOpenSettings: () => void
   onOpenPicker: () => void
   onOpenSensors: () => void
+  onOpenContext: () => void
   onClose: () => void
 }
 
@@ -17,15 +18,23 @@ const itemStyle: React.CSSProperties = {
   textAlign: 'left', fontSize: 12, fontFamily: 'system-ui',
 }
 
-export function ContextMenu({ x, y, isAnchored, onToggleAnchor, onOpenSettings, onOpenPicker, onOpenSensors, onClose }: Props) {
+const Sep = () => <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '3px 0' }} />
+
+export function ContextMenu({ x, y, isAnchored, onToggleAnchor, onOpenSettings, onOpenPicker, onOpenSensors, onOpenContext, onClose }: Props) {
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      // Close on any click outside — the menu itself stops propagation
-      onClose()
-    }
+    const handler = () => onClose()
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [onClose])
+
+  const Item = ({ label, onClick }: { label: string; onClick: () => void }) => (
+    <button
+      style={itemStyle}
+      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
+      onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+      onClick={onClick}
+    >{label}</button>
+  )
 
   return (
     <div
@@ -39,41 +48,15 @@ export function ContextMenu({ x, y, isAnchored, onToggleAnchor, onOpenSettings, 
         fontFamily: 'system-ui',
       }}
     >
-      <button
-        style={itemStyle}
-        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
-        onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-        onClick={() => { onOpenPicker(); onClose() }}
-      >
-        Cambiar personaje…
-      </button>
-      <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '3px 0' }} />
-      <button
-        style={itemStyle}
-        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
-        onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-        onClick={() => { onToggleAnchor(); onClose() }}
-      >
-        {isAnchored ? 'Desanclar' : 'Anclar'}
-      </button>
-      <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '3px 0' }} />
-      <button
-        style={itemStyle}
-        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
-        onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-        onClick={() => { onOpenSettings(); onClose() }}
-      >
-        Personalidad…
-      </button>
-      <div style={{ height: 1, background: 'rgba(255,255,255,0.07)', margin: '3px 0' }} />
-      <button
-        style={{ ...itemStyle, color: '#9ca3af' }}
-        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
-        onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-        onClick={() => { onOpenSensors(); onClose() }}
-      >
-        Sensores…
-      </button>
+      <Item label="Cambiar personaje…" onClick={() => { onOpenPicker(); onClose() }} />
+      <Sep />
+      <Item label={isAnchored ? 'Desanclar' : 'Anclar'} onClick={() => { onToggleAnchor(); onClose() }} />
+      <Sep />
+      <Item label="Personalidad…" onClick={() => { onOpenSettings(); onClose() }} />
+      <Sep />
+      <Item label="Sensores…" onClick={() => { onOpenSensors(); onClose() }} />
+      <Sep />
+      <Item label="Contexto…" onClick={() => { onOpenContext(); onClose() }} />
     </div>
   )
 }

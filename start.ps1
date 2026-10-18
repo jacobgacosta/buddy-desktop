@@ -20,6 +20,7 @@ Write-Host ""
 Write-Step "Checking Docker..."
 try {
     $null = docker info 2>&1
+    if ($LASTEXITCODE -ne 0) { throw "docker info failed" }
     Write-OK "Docker is running"
 } catch {
     Write-Fail "Docker is not running. Please start Docker Desktop and try again."
@@ -35,7 +36,7 @@ $whisperRunning = (docker inspect -f '{{.State.Running}}' local-stt-server 2>$nu
 if ($whisperRunning) {
     Write-Skip "local-stt-server already running"
 } else {
-    $whisperExists = docker inspect local-stt-server 2>$null
+    $whisperExists = (docker inspect local-stt-server 2>$null) -ne $null
     if ($whisperExists) {
         docker start local-stt-server | Out-Null
         Write-OK "local-stt-server started"
@@ -61,7 +62,7 @@ $piperRunning = (docker inspect -f '{{.State.Running}}' buddy-piper 2>$null) -eq
 if ($piperRunning) {
     Write-Skip "buddy-piper already running"
 } else {
-    $piperExists = docker inspect buddy-piper 2>$null
+    $piperExists = (docker inspect buddy-piper 2>$null) -ne $null
     if ($piperExists) {
         docker start buddy-piper | Out-Null
         Write-OK "buddy-piper started"
@@ -85,8 +86,10 @@ $releaseExe = "$Root\server\target\release\buddy-server.exe"
 if (-not (Test-Path $releaseExe)) {
     Write-Doing "Building server (first time, ~3 min)..."
     Push-Location "$Root\server"
-    cargo build --release 2>&1 | Where-Object { $_ -match "^error" } | ForEach-Object { Write-Fail $_ }
+    $buildOut = cargo build --release 2>&1
     Pop-Location
+    $buildErrors = $buildOut | Where-Object { $_ -match "^error" }
+    if ($buildErrors) { $buildErrors | ForEach-Object { Write-Fail $_ } }
     if (-not (Test-Path $releaseExe)) {
         Write-Fail "Server build failed. Make sure Rust is installed: https://rustup.rs"
         Read-Host "Press Enter to exit"
@@ -95,25 +98,45 @@ if (-not (Test-Path $releaseExe)) {
     Write-OK "Server built"
 }
 
+# Kill any previous instance and free the port
 taskkill /F /IM "buddy-server.exe" 2>$null | Out-Null
 $portOwner = (Get-NetTCPConnection -LocalPort 7788 -ErrorAction SilentlyContinue).OwningProcess | Select-Object -First 1
 if ($portOwner) { Stop-Process -Id $portOwner -Force -ErrorAction SilentlyContinue }
-Start-Sleep -Milliseconds 500
+Start-Sleep -Milliseconds 300
+
 Start-Process -FilePath $releaseExe -WorkingDirectory "$Root\server" -WindowStyle Hidden
-Write-OK "buddy-server started on :7788"
+
+# Wait until buddy-server is accepting connections (up to 8s)
+$ready = $false
+for ($i = 0; $i -lt 16; $i++) {
+    Start-Sleep -Milliseconds 500
+    try {
+        $tcp = New-Object System.Net.Sockets.TcpClient
+        $tcp.Connect("127.0.0.1", 7788)
+        $tcp.Close()
+        $ready = $true
+        break
+    } catch {}
+}
+if ($ready) { Write-OK "buddy-server ready on :7788" }
+else        { Write-Fail "buddy-server did not respond after 8s — check $releaseExe"; exit 1 }
 
 # ─────────────────────────────────────────────
 # 5. DESKTOP APP
 # ─────────────────────────────────────────────
 Write-Step "Buddy desktop app..."
 
-$desktopExe = "$Root\apps\desktop\src-tauri\target\release\buddy-desktop.exe"
-if (-not (Test-Path $desktopExe)) {
+$releaseDesktop = "$Root\apps\desktop\src-tauri\target\release\buddy-desktop.exe"
+if (-not (Test-Path $releaseDesktop)) {
     Write-Doing "Building app (first time, ~5 min)..."
     Push-Location "$Root\apps\desktop"
-    pnpm build 2>&1 | Where-Object { $_ -match "^error" } | ForEach-Object { Write-Fail $_ }
+    # build:exe uses 'tauri build --no-bundle': compiles the exe without creating an installer.
+    # This avoids failures when wix/nsis are not installed.
+    $buildOut = pnpm build:exe 2>&1
     Pop-Location
-    if (-not (Test-Path $desktopExe)) {
+    $buildErrors = $buildOut | Where-Object { $_ -match "^error" }
+    if ($buildErrors) { $buildErrors | ForEach-Object { Write-Fail $_ } }
+    if (-not (Test-Path $releaseDesktop)) {
         Write-Fail "App build failed. Make sure Node.js and pnpm are installed."
         Read-Host "Press Enter to exit"
         exit 1
@@ -123,7 +146,7 @@ if (-not (Test-Path $desktopExe)) {
 
 taskkill /F /IM "buddy-desktop.exe" 2>$null | Out-Null
 Start-Sleep -Milliseconds 300
-Start-Process -FilePath $desktopExe
+Start-Process -FilePath $releaseDesktop
 Write-OK "buddy-desktop started"
 
 # ─────────────────────────────────────────────

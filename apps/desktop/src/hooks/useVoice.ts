@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { listen } from '@tauri-apps/api/event'
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? 'http://localhost:7788'
@@ -22,11 +22,15 @@ interface VoiceCapturedPayload {
   duration_ms: number
 }
 
-export function useVoice(onTranscript: (text: string) => void): void {
+export function useVoice(onTranscript: (text: string) => void, enabled = true): void {
+  const enabledRef = useRef(enabled)
+  enabledRef.current = enabled
+
   useEffect(() => {
     let unlisten: (() => void) | undefined
 
     listen<VoiceCapturedPayload>('voice-captured', async ({ payload }) => {
+      if (!enabledRef.current) return
       try {
         const resp = await fetch(`${SERVER_URL}/transcribe`, {
           method: 'POST',

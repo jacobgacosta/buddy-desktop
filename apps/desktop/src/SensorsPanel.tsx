@@ -6,58 +6,69 @@ import type { SensorSnapshot, Mood } from '@buddy/core'
 interface Props {
   snapshot: SensorSnapshot | null
   mood: Mood
+  micEnabled: boolean
+  onToggleMic: (v: boolean) => void
   onClose: () => void
 }
 
-const card: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.04)',
-  borderRadius: 10,
-  padding: '8px 10px',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 6,
-}
-const label: React.CSSProperties = { fontSize: 10, color: '#6b7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.8 }
-const value: React.CSSProperties = { fontSize: 12, color: '#e5e7eb' }
-
-const LEVEL_COLOR: Record<string, string> = {
-  idle: '#6b7280', light: '#34d399', heavy: '#f59e0b',
+const MOOD_LABEL: Record<string, string> = {
+  playful: 'Juguetón', curious: 'Curioso', calm: 'Tranquilo',
+  tired: 'Cansado', focused: 'Concentrado', sleepy: 'Somnoliento',
 }
 const MOOD_COLOR: Record<string, string> = {
   playful: '#f472b6', curious: '#818cf8', calm: '#34d399',
   tired: '#9ca3af', focused: '#60a5fa', sleepy: '#475569',
 }
 
-function VolumeBar({ level }: { level: number }) {
-  const pct = Math.min(100, Math.round(level * 100 * 6))
-  const color = pct > 60 ? '#f59e0b' : pct > 20 ? '#34d399' : '#4b5563'
-  return (
-    <div style={{ height: 6, background: '#1f2937', borderRadius: 3, overflow: 'hidden' }}>
-      <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 3, transition: 'width 0.1s ease' }} />
-    </div>
-  )
-}
-
 function formatIdle(ms: number): string {
-  if (ms < 60_000) return `${Math.round(ms / 1000)}s`
-  if (ms < 3_600_000) return `${Math.round(ms / 60_000)}min`
-  return `${Math.round(ms / 3_600_000)}h`
+  if (ms < 60_000) return `hace ${Math.round(ms / 1000)}s`
+  if (ms < 3_600_000) return `hace ${Math.round(ms / 60_000)} min`
+  return `hace ${Math.round(ms / 3_600_000)}h`
 }
 
 function formatExpiry(expiresAt: number): string {
   const left = expiresAt - Date.now()
-  if (left <= 0) return 'expirado'
+  if (left <= 0) return 'expiró'
   const min = Math.ceil(left / 60_000)
-  return `${min}min`
+  return `${min} min`
 }
 
-export function SensorsPanel({ snapshot, mood, onClose }: Props) {
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div onClick={() => onChange(!checked)} style={{
+      width: 40, height: 22, borderRadius: 11, cursor: 'pointer', flexShrink: 0,
+      background: checked ? '#6366f1' : '#374151',
+      position: 'relative', transition: 'background 0.2s',
+    }}>
+      <div style={{
+        position: 'absolute', top: 4, width: 14, height: 14, borderRadius: 7,
+        background: '#fff', transition: 'left 0.18s',
+        left: checked ? 22 : 4, boxShadow: '0 1px 3px rgba(0,0,0,0.35)',
+      }} />
+    </div>
+  )
+}
+
+const card: React.CSSProperties = {
+  background: 'rgba(255,255,255,0.04)',
+  border: '1px solid rgba(255,255,255,0.07)',
+  borderRadius: 10, padding: '10px 12px',
+  display: 'flex', flexDirection: 'column', gap: 8,
+}
+const cardTitle: React.CSSProperties = {
+  fontSize: 10, color: '#4b5563', fontWeight: 700,
+  letterSpacing: 1.1, textTransform: 'uppercase',
+}
+const rowStyle: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+}
+
+export function SensorsPanel({ snapshot, mood, micEnabled, onToggleMic, onClose }: Props) {
   const [liveLevel, setLiveLevel] = useState(0)
   const [liveActive, setLiveActive] = useState(false)
   const [devices, setDevices] = useState<string[]>([])
   const [selectedDevice, setSelectedDevice] = useState('')
 
-  // Real-time mic level from 200ms events
   useEffect(() => {
     let unlisten: (() => void) | undefined
     listen<{ level: number; active: boolean }>('mic-level', ({ payload }) => {
@@ -67,14 +78,10 @@ export function SensorsPanel({ snapshot, mood, onClose }: Props) {
     return () => { unlisten?.() }
   }, [])
 
-  // Load available devices on mount
   useEffect(() => {
-    invoke<string[]>('get_audio_devices').then(devs => {
-      setDevices(devs)
-    })
+    invoke<string[]>('get_audio_devices').then(devs => { setDevices(devs) })
   }, [])
 
-  // Sync selected device from snapshot when it changes
   useEffect(() => {
     if (snapshot?.mic.deviceName && !selectedDevice) {
       setSelectedDevice(snapshot.mic.deviceName)
@@ -86,113 +93,151 @@ export function SensorsPanel({ snapshot, mood, onClose }: Props) {
     invoke('set_mic_device', { deviceName: name })
   }
 
+  const micBarPct = micEnabled ? Math.min(100, Math.round(liveLevel * 100 * 6)) : 0
+  const micBarColor = micBarPct > 60 ? '#f59e0b' : micBarPct > 20 ? '#34d399' : '#374151'
+
+  const activityLevel = snapshot?.input.level ?? 'idle'
+  const activityLabels: Record<string, string> = { idle: 'Inactivo', light: 'Actividad leve', heavy: 'Actividad intensa' }
+  const activityColors: Record<string, string> = { idle: '#4b5563', light: '#34d399', heavy: '#f59e0b' }
+
   return (
     <div style={{
       width: '100%', height: '100%',
-      background: 'rgba(20,20,30,0.95)',
-      borderRadius: 16, padding: 12, color: '#fff',
-      fontFamily: 'system-ui', fontSize: 13,
-      boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-      display: 'flex', flexDirection: 'column', gap: 8,
-      boxSizing: 'border-box', overflowY: 'auto',
+      background: 'linear-gradient(160deg, rgba(13,13,26,0.99) 0%, rgba(22,18,38,0.99) 100%)',
+      borderRadius: 14, padding: '14px 18px', color: '#fff',
+      fontFamily: 'system-ui', display: 'flex', flexDirection: 'column',
+      boxSizing: 'border-box', overflow: 'hidden',
     }}>
+
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase' }}>Sensores</span>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: '2px 4px' }}>×</button>
+      <div style={{ ...rowStyle, marginBottom: 14 }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#e5e7eb' }}>Sensores</span>
+        <button onClick={onClose} style={{
+          background: 'rgba(255,255,255,0.07)', border: 'none', color: '#9ca3af',
+          cursor: 'pointer', width: 24, height: 24, borderRadius: 6, fontSize: 14,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>×</button>
       </div>
 
-      {/* Mic */}
-      <div style={card}>
-        <span style={label}>🎤 Micrófono</span>
-        {/* Device picker */}
-        {devices.length > 0 ? (
-          <select
-            value={selectedDevice}
-            onChange={e => handleDeviceChange(e.target.value)}
-            style={{
-              background: '#1f2937', border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: 6, color: '#e5e7eb', fontSize: 11,
-              padding: '3px 6px', cursor: 'pointer', width: '100%',
-            }}
-          >
-            {devices.map(d => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
-        ) : (
-          <span style={{ ...value, fontSize: 11, color: '#9ca3af', wordBreak: 'break-word' }}>
-            {snapshot?.mic.deviceName || 'Esperando primer snapshot…'}
-          </span>
+      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10, paddingRight: 4, paddingBottom: 20 }}>
+
+        {/* Microphone */}
+        <div style={card}>
+          <div style={cardTitle}>Micrófono — escucha tu voz</div>
+
+          <div style={rowStyle}>
+            <div>
+              <div style={{ fontSize: 12, color: '#d1d5db' }}>Escuchar wake word</div>
+              <div style={{ fontSize: 11, color: '#4b5563', marginTop: 1 }}>
+                {micEnabled ? 'Activo — puede oírte' : 'Silenciado — no escucha'}
+              </div>
+            </div>
+            <Toggle checked={micEnabled} onChange={onToggleMic} />
+          </div>
+
+          {/* Device picker */}
+          {devices.length > 0 && (
+            <div style={{ position: 'relative' }}>
+              <select
+                value={selectedDevice}
+                onChange={e => handleDeviceChange(e.target.value)}
+                style={{
+                  width: '100%', appearance: 'none', WebkitAppearance: 'none',
+                  background: 'rgba(255,255,255,0.06)',
+                  border: '1px solid rgba(255,255,255,0.09)',
+                  borderRadius: 7, padding: '6px 28px 6px 10px',
+                  color: '#e5e7eb', fontSize: 11, cursor: 'pointer', outline: 'none',
+                  opacity: micEnabled ? 1 : 0.4,
+                }}
+                disabled={!micEnabled}
+              >
+                {devices.map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+              <div style={{
+                position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)',
+                pointerEvents: 'none', color: '#6b7280', fontSize: 10,
+              }}>▾</div>
+            </div>
+          )}
+
+          {/* Level bar */}
+          <div>
+            <div style={rowStyle}>
+              <span style={{ fontSize: 11, color: liveActive && micEnabled ? '#34d399' : '#4b5563' }}>
+                {micEnabled ? (liveActive ? '● Detectando voz' : '○ Silencio') : '— Silenciado'}
+              </span>
+              <span style={{ fontSize: 11, color: '#4b5563', fontVariantNumeric: 'tabular-nums' }}>
+                {(liveLevel * 100).toFixed(0)}%
+              </span>
+            </div>
+            <div style={{ height: 5, background: 'rgba(255,255,255,0.07)', borderRadius: 3, marginTop: 5, overflow: 'hidden' }}>
+              <div style={{ width: `${micBarPct}%`, height: '100%', background: micBarColor, borderRadius: 3, transition: 'width 0.1s ease' }} />
+            </div>
+          </div>
+        </div>
+
+        {/* User activity */}
+        <div style={card}>
+          <div style={cardTitle}>Tu actividad — teclado y mouse</div>
+          <div style={rowStyle}>
+            <span style={{
+              background: (activityColors[activityLevel] ?? '#4b5563') + '22',
+              color: activityColors[activityLevel] ?? '#4b5563',
+              borderRadius: 6, padding: '2px 10px', fontSize: 11, fontWeight: 700,
+            }}>
+              {activityLabels[activityLevel] ?? activityLevel}
+            </span>
+            <span style={{ fontSize: 11, color: '#4b5563' }}>
+              {snapshot ? formatIdle(snapshot.input.idleDuration) : '—'}
+            </span>
+          </div>
+          <div style={{ fontSize: 11, color: '#4b5563' }}>
+            Actividad intensa → enfocado / juguetón · Inactividad prolongada → somnoliento / cansado
+          </div>
+        </div>
+
+        {/* Mood */}
+        <div style={card}>
+          <div style={cardTitle}>Estado de ánimo actual</div>
+          <div style={rowStyle}>
+            <div>
+              <span style={{
+                background: (MOOD_COLOR[mood.name] ?? '#6b7280') + '22',
+                color: MOOD_COLOR[mood.name] ?? '#6b7280',
+                borderRadius: 6, padding: '2px 10px', fontSize: 12, fontWeight: 700,
+              }}>
+                {MOOD_LABEL[mood.name] ?? mood.name}
+              </span>
+            </div>
+            <span style={{ fontSize: 11, color: '#4b5563' }}>
+              se recalcula en {formatExpiry(mood.expiresAt)}
+            </span>
+          </div>
+          <div style={{ fontSize: 11, color: '#4b5563' }}>
+            Afecta la velocidad de caminado y las animaciones del avatar
+          </div>
+        </div>
+
+        {/* Time context */}
+        <div style={card}>
+          <div style={cardTitle}>Contexto de hora</div>
+          <div style={{ fontSize: 13, color: '#d1d5db' }}>
+            {snapshot ? `${snapshot.time.hour}:00 hs` : '—'}
+            {snapshot?.time.isNight ? ' · de noche' : ' · de día'}
+            {snapshot?.time.isWeekend ? ' · fin de semana' : ''}
+          </div>
+          <div style={{ fontSize: 11, color: '#4b5563' }}>
+            Influye en el comportamiento del avatar
+          </div>
+        </div>
+
+        {!snapshot && (
+          <p style={{ textAlign: 'center', color: '#4b5563', fontSize: 11, margin: 0 }}>
+            Primer snapshot en ~5s…
+          </p>
         )}
-        <VolumeBar level={liveLevel} />
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: 11, color: liveActive ? '#34d399' : '#6b7280' }}>
-            {liveActive ? '● Activo' : '○ Silencio'}
-          </span>
-          <span style={{ fontSize: 11, color: '#6b7280' }}>
-            RMS {(liveLevel * 100).toFixed(1)}%
-          </span>
-        </div>
-      </div>
 
-      {/* Input */}
-      <div style={card}>
-        <span style={label}>⌨️ Input</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{
-            background: LEVEL_COLOR[snapshot?.input.level ?? 'idle'] + '22',
-            color: LEVEL_COLOR[snapshot?.input.level ?? 'idle'],
-            borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600,
-          }}>
-            {snapshot?.input.level ?? '—'}
-          </span>
-          <span style={{ fontSize: 11, color: '#6b7280' }}>
-            {Math.round(snapshot?.input.keyRate ?? 0)} teclas/min
-          </span>
-        </div>
-        <span style={{ fontSize: 11, color: '#6b7280' }}>
-          Idle hace {snapshot ? formatIdle(snapshot.input.idleDuration) : '—'}
-        </span>
       </div>
-
-      {/* Mood */}
-      <div style={card}>
-        <span style={label}>🧠 Mood actual</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{
-            background: (MOOD_COLOR[mood.name] ?? '#6b7280') + '22',
-            color: MOOD_COLOR[mood.name] ?? '#6b7280',
-            borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 600,
-          }}>
-            {mood.name}
-          </span>
-          <span style={{ fontSize: 11, color: '#9ca3af' }}>{mood.energy}</span>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: 11, color: '#6b7280' }}>restless: {mood.restlessness}</span>
-          <span style={{ fontSize: 11, color: '#6b7280' }}>z: {mood.zOrder}</span>
-        </div>
-        <span style={{ fontSize: 11, color: '#6b7280' }}>
-          Expira en {formatExpiry(mood.expiresAt)}
-        </span>
-      </div>
-
-      {/* Time */}
-      <div style={card}>
-        <span style={label}>🕐 Contexto temporal</span>
-        <span style={value}>
-          {snapshot ? `${snapshot.time.hour}:00h` : '—'}
-          {snapshot?.time.isNight ? ' · noche' : ''}
-          {snapshot?.time.isWeekend ? ' · fin de semana' : ''}
-        </span>
-      </div>
-
-      {snapshot === null && (
-        <div style={{ textAlign: 'center', color: '#6b7280', fontSize: 11, paddingTop: 4 }}>
-          Primer snapshot en ~5s
-        </div>
-      )}
     </div>
   )
 }
