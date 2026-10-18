@@ -1,0 +1,11 @@
+{
+  "memory_enabled": true,
+  "memory_max_entries": 100,
+  "memory_path": "./buddy-memory.json",
+  "screenshot_enabled": false,
+  "screenshot_interval_secs": 60,
+  "screenshot_save_to_disk": false,
+  "screenshot_save_path": "./screenshots",
+  "screenshot_monitor": "buddy",
+  "memory_inject_count": 5
+}

@@ -29,9 +29,14 @@ async fn main() {
         .route("/health", get(routes::health::health))
         .route("/avatars", get(routes::avatars::list_avatars))
         .route("/chat", post(routes::chat::chat))
+        .route("/chat/stream", post(routes::chat::chat_stream))
         .route("/mood", post(routes::mood::decide_mood))
         .route("/transcribe", post(routes::transcribe::transcribe))
         .route("/tts", post(routes::tts::tts))
+        .route("/context/config", get(routes::context::get_config).put(routes::context::put_config))
+        .route("/context/screenshot", post(routes::context::post_screenshot))
+        .route("/context/memory", post(routes::context::post_memory))
+        .route("/context/memories", get(routes::context::get_memories).delete(routes::context::delete_memories))
         .layer(cors)
         .with_state(state);
 

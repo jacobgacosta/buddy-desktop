@@ -4,3 +4,4 @@ pub mod avatars;
 pub mod mood;
 pub mod transcribe;
 pub mod tts;
+pub mod context;
