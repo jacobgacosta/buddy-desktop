@@ -1,0 +1,2 @@
+[toolchain]
+channel = "1.95-x86_64-pc-windows-gnu"

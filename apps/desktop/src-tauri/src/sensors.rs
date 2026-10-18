@@ -1,7 +1,9 @@
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use chrono::Timelike as _;
+use chrono::Datelike as _;
 use serde::Serialize;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 #[derive(Default)]
 pub(crate) struct InputState {
@@ -15,8 +17,13 @@ pub(crate) struct InputState {
     pub(crate) recording_buffer: Vec<f32>,
     pub(crate) recording_sample_rate: u32,
     pub(crate) recording_channels: u16,
-    ambient_active_since: Option<u64>,   // ms timestamp when sound started
-    ambient_silent_since: Option<u64>,   // ms timestamp when silence started
+    ambient_active_since: Option<u64>,
+    ambient_silent_since: Option<u64>,
+    // click-through: window position + UI state
+    pub(crate) win_x: f64,
+    pub(crate) win_y: f64,
+    pub(crate) panels_open: bool,
+    is_ignoring: bool,
 }
 
 /// Shared config for mic device switching — managed as Tauri state.
@@ -69,6 +76,7 @@ pub fn launch_sensors(app: AppHandle) -> (Arc<Mutex<MicConfig>>, Arc<Mutex<Input
 
     // rdev: global keyboard + mouse hook
     let state_input = Arc::clone(&state);
+    let app_rdev = app.clone();
     std::thread::spawn(move || {
         let _ = rdev::listen(move |event| {
             let mut s = state_input.lock().unwrap();
@@ -78,9 +86,22 @@ pub fn launch_sensors(app: AppHandle) -> (Arc<Mutex<MicConfig>>, Arc<Mutex<Input
                     s.key_timestamps.push(t);
                     s.last_input_at = Some(t);
                 }
-                rdev::EventType::MouseMove { .. } => {
+                rdev::EventType::MouseMove { x, y } => {
                     s.mouse_events += 1;
                     s.last_input_at = Some(now_ms());
+
+                    // click-through: ignore cursor events on transparent margins
+                    const OFF_X: f64 = 30.0;
+                    const SPRITE: f64 = 200.0;
+                    let in_avatar = x >= s.win_x + OFF_X && x < s.win_x + OFF_X + SPRITE
+                                 && y >= s.win_y          && y < s.win_y + SPRITE;
+                    let should_ignore = !in_avatar && !s.panels_open;
+                    if should_ignore != s.is_ignoring {
+                        s.is_ignoring = should_ignore;
+                        if let Some(win) = app_rdev.get_webview_window("buddy") {
+                            let _ = win.set_ignore_cursor_events(should_ignore);
+                        }
+                    }
                 }
                 _ => {}
             }
@@ -117,12 +138,9 @@ pub fn launch_sensors(app: AppHandle) -> (Arc<Mutex<MicConfig>>, Arc<Mutex<Input
             let mouse_events = s.mouse_events as f32;
             s.mouse_events = 0;
 
-            let secs = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs();
-            let hour = ((secs % 86400) / 3600) as u8;
-            let day_of_week = (secs / 86400 + 4) % 7;
+            let local_now = chrono::Local::now();
+            let hour = local_now.hour() as u8;
+            let day_of_week = local_now.weekday().num_days_from_sunday();
 
             // Ambient classification
             let (ambient_type, ambient_duration_s) = {
