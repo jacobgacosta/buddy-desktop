@@ -8,12 +8,14 @@ import { ContextMenu } from './ContextMenu'
 import { SettingsPanel } from './SettingsPanel'
 import { SensorsPanel } from './SensorsPanel'
 import { CharacterPicker } from './CharacterPicker'
+import { ContextPanel } from './ContextPanel'
 import { useBuddy } from './hooks/useBuddy'
 import { SpeechBubble } from './SpeechBubble'
 import { useSensors } from './hooks/useSensors'
 import { useMood } from './hooks/useMood'
 import { useVoice } from './hooks/useVoice'
 import { useTTS } from './hooks/useTTS'
+import { useScreencap } from './hooks/useScreencap'
 import { CHARACTERS, findCharacter } from './characters/registry'
 import { createPhysics, tickPhysics, setWalkTarget, randomNearbyTarget } from './physics'
 import { gaussian, moodToParams, detectIntent, AmbientEngine } from '@buddy/core'
@@ -26,10 +28,15 @@ import type { Position } from './physics'
 // Chat bubble opens below the avatar.
 const SPRITE = 200
 const WIN_W = 260
-const WIN_H = 480
-const PANEL_TOP = 168                  // where chat/menus start (independent of SPRITE)
-const OFF_X = (WIN_W - SPRITE) / 2   // horizontal centering within window
-const OFF_Y = 0                        // avatar at top of window
+const WIN_W_PANEL = 360  // wider window when a full config panel is open
+const WIN_H = 480        // base height (chat, context menu)
+const WIN_H_FULL = 640   // taller window for settings/picker/sensors
+const WIN_H_BUBBLE = 310
+const WIN_H_COMPACT = 200
+const PANEL_TOP = 172        // chat panel starts here
+const FULL_PANEL_TOP = 172   // config panels: slightly below avatar overlap zone
+const OFF_X = (WIN_W - SPRITE) / 2
+const OFF_Y = 0
 
 const DEFAULT_AVATAR: Avatar = {
   id: 'fox',
@@ -119,6 +126,10 @@ export function BuddyOverlay() {
   const [isAnchored, setIsAnchored] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [sensorsOpen, setSensorsOpen] = useState(false)
+  const [contextOpen, setContextOpen] = useState(false)
+  const [screencapEnabled, setScreencapEnabled] = useState(false)
+  const [screencapInterval, setScreencapInterval] = useState(60)
+  const [screencapMonitor, setScreencapMonitor] = useState('buddy')
   const [currentCharacter, setCurrentCharacter] = useState(
     () => loadSavedCharacter() ?? CHARACTERS[0]
   )
@@ -131,6 +142,12 @@ export function BuddyOverlay() {
   const [textEnabled, setTextEnabled] = useState(() => {
     try { return JSON.parse(localStorage.getItem('buddy-tts-text') ?? 'true') } catch { return true }
   })
+  const [ttsVolume, setTtsVolume] = useState(() => {
+    try { return parseFloat(localStorage.getItem('buddy-tts-volume') ?? '1') } catch { return 1 }
+  })
+  const [micEnabled, setMicEnabled] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('buddy-mic-enabled') ?? 'true') } catch { return true }
+  })
 
   // Avatar screen position on start: 20px from right/bottom edge.
   // pos.(x,y) = avatar screen coords; window pos = (pos.x - OFF_X, pos.y - OFF_Y).
@@ -142,16 +159,18 @@ export function BuddyOverlay() {
     ? { x: savedWin.x + OFF_X, y: savedWin.y + OFF_Y }
     : { x: sw - WIN_W + OFF_X - 20, y: sh - WIN_H - 20 }
 
-  const physicsRef   = useRef(createPhysics(initPos))
-  const lastTimeRef  = useRef(performance.now())
-  const rafRef       = useRef(0)
-  const sleepTimerRef = useRef(0)
+  const physicsRef        = useRef(createPhysics(initPos))
+  const lastTimeRef       = useRef(performance.now())
+  const rafRef            = useRef(0)
+  const sleepTimerRef     = useRef(0)
+  const panelTransitionRef = useRef(0)
+  const anyPanelOpenRef   = useRef(false)
   const walkTimerRef = useRef(0)
   const lastWinPos   = useRef({ x: -9999, y: -9999 })
   const chatOpenRef  = useRef(false)
   chatOpenRef.current = chatOpen
   const uiBusyRef = useRef(false)
-  uiBusyRef.current = chatOpen || !!contextMenu || settingsOpen || pickerOpen || sensorsOpen
+  uiBusyRef.current = chatOpen || !!contextMenu || settingsOpen || pickerOpen || sensorsOpen || contextOpen
   const isDraggingRef = useRef(false)
   const anchoredRef   = useRef(false)
   const monitorRef   = useRef<MonitorBounds>({ x: 0, y: 0, w: sw, h: sh })
@@ -175,7 +194,7 @@ export function BuddyOverlay() {
     try { localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg)) } catch {}
   }, [])
 
-  const { speak } = useTTS(ttsEnabled)
+  const { speak } = useTTS(ttsEnabled, ttsVolume)
 
   const [initialHistory] = useState(loadHistory)
   const { state, history, thinking, sendMessage, wakeUp, startWalking, stopWalking, stopReacting, setSleep } =
@@ -208,13 +227,38 @@ export function BuddyOverlay() {
     } else if (intent.type === 'command' && intent.command) {
       handleCommand(intent.command)
     }
-  }, [currentCharacter, sendMessage, handleCommand]))
+  }, [currentCharacter, sendMessage, handleCommand]), micEnabled)
 
   const stateRef = useRef(state)
   stateRef.current = state
 
   const snapshot = useSensors()
   const mood = useMood(snapshot)
+
+  // Load screencap config from server on mount
+  useEffect(() => {
+    fetch(`${SERVER_URL}/context/config`)
+      .then(r => r.json())
+      .then((cfg: { screenshot_enabled: boolean; screenshot_interval_secs: number; screenshot_monitor: string }) => {
+        setScreencapEnabled(cfg.screenshot_enabled)
+        setScreencapInterval(cfg.screenshot_interval_secs)
+        setScreencapMonitor(cfg.screenshot_monitor)
+      })
+      .catch(() => {})
+  }, [])
+
+  useScreencap(screencapEnabled, screencapInterval, screencapMonitor, currentCharacter.id, SERVER_URL)
+
+  // Ctrl+Shift+I → DevTools (debug only)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'I') {
+        void invoke('open_devtools')
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
 
   // Sync z-order when mood changes
   const prevZOrderRef = useRef(mood.zOrder)
@@ -257,10 +301,10 @@ export function BuddyOverlay() {
       if (stateRef.current !== 'idle') { scheduleNextWalk(2_000); return }
       startWalking()
       const scale = Math.max(0.75, Math.min(2, monitorRef.current.w / 1920))
-      physicsRef.current = setWalkTarget(
+      physicsRef.current = { ...setWalkTarget(
         physicsRef.current,
         clampedWalkTarget(physicsRef.current.pos, monitorRef.current, Math.round(behaviorRef.current.walkRadius * scale)),
-      )
+      ), isFidget: false }
     }, delay)
   }, [startWalking])
 
@@ -273,6 +317,7 @@ export function BuddyOverlay() {
         scheduleFidget()
         return
       }
+      if (stateRef.current !== 'idle') return
       fidgetHomeRef.current = { ...physicsRef.current.pos }
       const angle = Math.random() * Math.PI * 2
       const fidgetTarget = {
@@ -297,6 +342,24 @@ export function BuddyOverlay() {
     scheduleFidget()
     return () => clearTimeout(walkTimerRef.current)
   }, [moveWindow, refreshMonitor, scheduleNextWalk, scheduleFidget])
+
+  // Resize window dynamically.
+  // Config panels (settings/picker/sensors) get a wider+taller window starting below the avatar.
+  // Chat and context menu use the original WIN_H window.
+  const isConfigPanel = settingsOpen || pickerOpen || sensorsOpen || contextOpen
+  const anyPanelOpen  = isConfigPanel || chatOpen || !!contextMenu
+  anyPanelOpenRef.current = anyPanelOpen
+  const currentW = isConfigPanel ? WIN_W_PANEL : WIN_W
+  const currentH = isConfigPanel ? WIN_H_FULL
+                 : (chatOpen || !!contextMenu) ? WIN_H
+                 : (bubbleText ? WIN_H_BUBBLE : WIN_H_COMPACT)
+  useEffect(() => {
+    invoke('set_window_size', { w: currentW, h: currentH }).catch(() => {})
+  }, [currentW, currentH])
+
+  useEffect(() => {
+    invoke('set_panels_open', { open: anyPanelOpen }).catch(() => {})
+  }, [anyPanelOpen])
 
   // Resume walk cycle after waking from sleep (both auto-wake and user click).
   const prevStateRef = useRef(state)
@@ -465,36 +528,71 @@ export function BuddyOverlay() {
     } catch {}
   }, [])
 
+  const closeAll = useCallback(() => {
+    setChatOpen(false); setSettingsOpen(false); setPickerOpen(false)
+    setSensorsOpen(false); setContextOpen(false); setContextMenu(null)
+  }, [])
+
+  // Cierra lo que haya abierto, espera 300ms, luego abre el siguiente panel.
+  // Si no hay nada abierto, abre directo.
+  const switchTo = useCallback((open: () => void) => {
+    clearTimeout(panelTransitionRef.current)
+    if (anyPanelOpenRef.current) {
+      closeAll()
+      panelTransitionRef.current = window.setTimeout(open, 300)
+    } else {
+      open()
+    }
+  }, [closeAll])
+
+  // Ctrl+Shift+Space global hotkey → open chat
+  useEffect(() => {
+    let unlisten: (() => void) | undefined
+    listen('open-chat', () => {
+      switchTo(() => setChatOpen(true))
+    }).then(fn => { unlisten = fn })
+    return () => { unlisten?.() }
+  }, [switchTo])
+
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
     const MENU_W = 170, MENU_H = 165
     const x = Math.min(e.clientX, WIN_W - MENU_W - 4)
-    const y = Math.max(PANEL_TOP, Math.min(e.clientY, WIN_H - MENU_H - 4))
-    setContextMenu({ x, y })
-  }, [])
+    const y = FULL_PANEL_TOP
+    switchTo(() => setContextMenu({ x, y }))
+  }, [switchTo])
 
   const handleClick = useCallback(() => {
     if (!mouseDownAt.current) return
     mouseDownAt.current = null
     if (stateRef.current === 'sleep') { wakeUp(); return }
-    // resync physics to actual window position on every toggle
     stopWalking()
     physicsRef.current = createPhysics({ x: lastWinPos.current.x + OFF_X, y: lastWinPos.current.y + OFF_Y })
-    setChatOpen(o => {
-      if (o) scheduleNextWalk(5_000) // closing chat → resume after 5s
-      return !o
-    })
-  }, [wakeUp, stopWalking, scheduleNextWalk])
+    if (chatOpenRef.current) {
+      setChatOpen(false)
+      scheduleNextWalk(5_000)
+      return
+    }
+    switchTo(() => setChatOpen(true))
+  }, [wakeUp, stopWalking, scheduleNextWalk, switchTo])
 
-  const panelSlot: React.CSSProperties = {
+  const panelSlotChat: React.CSSProperties = {
     position: 'absolute', top: PANEL_TOP, left: 6, right: 6, bottom: 6, zIndex: 20,
   }
+  const panelSlotFull: React.CSSProperties = {
+    position: 'absolute', top: FULL_PANEL_TOP, left: 8, right: 8, bottom: 14, zIndex: 20,
+  }
+
+  const handleMicToggle = useCallback((v: boolean) => {
+    setMicEnabled(v)
+    localStorage.setItem('buddy-mic-enabled', String(v))
+  }, [])
 
   return (
-    <div style={{ width: WIN_W, height: WIN_H, position: 'relative' }}>
+    <div style={{ width: currentW, height: currentH, position: 'relative' }}>
       {chatOpen && !settingsOpen && (
-        <div style={panelSlot}>
+        <div style={panelSlotChat}>
           <ChatBubble
             history={history}
             thinking={thinking}
@@ -504,21 +602,23 @@ export function BuddyOverlay() {
         </div>
       )}
       {settingsOpen && (
-        <div style={panelSlot}>
+        <div style={panelSlotFull}>
           <SettingsPanel
             avatarName={avatarConfig.name}
             avatarPersonality={avatarConfig.personality}
             textEnabled={textEnabled}
             voiceEnabled={ttsEnabled}
+            ttsVolume={ttsVolume}
             onSave={handleSaveConfig}
             onToggleText={(v) => { setTextEnabled(v); localStorage.setItem('buddy-tts-text', String(v)) }}
             onToggleVoice={(v) => { setTtsEnabled(v); localStorage.setItem('buddy-tts-voice', String(v)) }}
+            onVolumeChange={(v) => { setTtsVolume(v); localStorage.setItem('buddy-tts-volume', String(v)) }}
             onClose={() => setSettingsOpen(false)}
           />
         </div>
       )}
       {pickerOpen && (
-        <div style={panelSlot}>
+        <div style={panelSlotFull}>
           <CharacterPicker
             characters={CHARACTERS}
             currentId={currentCharacter.id}
@@ -529,11 +629,21 @@ export function BuddyOverlay() {
         </div>
       )}
       {sensorsOpen && (
-        <div style={panelSlot}>
+        <div style={panelSlotFull}>
           <SensorsPanel
             snapshot={snapshot}
             mood={mood}
+            micEnabled={micEnabled}
+            onToggleMic={handleMicToggle}
             onClose={() => setSensorsOpen(false)}
+          />
+        </div>
+      )}
+      {contextOpen && (
+        <div style={panelSlotFull}>
+          <ContextPanel
+            serverUrl={SERVER_URL}
+            onClose={() => setContextOpen(false)}
           />
         </div>
       )}
@@ -543,9 +653,10 @@ export function BuddyOverlay() {
           y={contextMenu.y}
           isAnchored={isAnchored}
           onToggleAnchor={handleToggleAnchor}
-          onOpenSettings={() => { setSettingsOpen(true); setChatOpen(false); setPickerOpen(false); setSensorsOpen(false) }}
-          onOpenPicker={() => { setPickerOpen(true); setChatOpen(false); setSettingsOpen(false); setSensorsOpen(false) }}
-          onOpenSensors={() => { setSensorsOpen(true); setChatOpen(false); setSettingsOpen(false); setPickerOpen(false) }}
+          onOpenSettings={() => switchTo(() => setSettingsOpen(true))}
+          onOpenPicker={() => switchTo(() => setPickerOpen(true))}
+          onOpenSensors={() => switchTo(() => setSensorsOpen(true))}
+          onOpenContext={() => switchTo(() => setContextOpen(true))}
           onClose={() => { setContextMenu(null); scheduleNextWalk(5_000) }}
         />
       )}
