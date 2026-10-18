@@ -99,7 +99,7 @@ if (-not (Test-Path $releaseExe)) {
 }
 
 # Kill any previous instance and free the port
-taskkill /F /IM "buddy-server.exe" 2>$null | Out-Null
+taskkill /F /IM "buddy-server.exe" 2>$null | Out-Null; $LASTEXITCODE = 0
 $portOwner = (Get-NetTCPConnection -LocalPort 7788 -ErrorAction SilentlyContinue).OwningProcess | Select-Object -First 1
 if ($portOwner) { Stop-Process -Id $portOwner -Force -ErrorAction SilentlyContinue }
 Start-Sleep -Milliseconds 300
@@ -144,7 +144,7 @@ if (-not (Test-Path $releaseDesktop)) {
     Write-OK "App built"
 }
 
-taskkill /F /IM "buddy-desktop.exe" 2>$null | Out-Null
+taskkill /F /IM "buddy-desktop.exe" 2>$null | Out-Null; $LASTEXITCODE = 0
 Start-Sleep -Milliseconds 300
 Start-Process -FilePath $releaseDesktop
 Write-OK "buddy-desktop started"

@@ -136,10 +136,17 @@ pub async fn chat_stream(
 
     let (tx, rx) = tokio::sync::mpsc::channel::<Result<Event, Infallible>>(64);
 
+    // Clone what we need for memory save after streaming completes
+    let memory = state.memory.clone();
+    let cfg = state.context_config.read().unwrap().clone();
+    let user_msg = req.message.clone();
+    let avatar_id = req.avatar_id.clone();
+
     tokio::spawn(async move {
         let mut byte_stream = upstream.bytes_stream();
         let mut buf = String::new();
         let mut in_think = false;
+        let mut full_response = String::new();
 
         while let Some(chunk) = byte_stream.next().await {
             let bytes = match chunk { Ok(b) => b, Err(_) => break };
@@ -154,6 +161,15 @@ pub async fn chat_stream(
 
                 if data == "[DONE]" {
                     let _ = tx.send(Ok(Event::default().data("[DONE]"))).await;
+                    // Save to memory after stream completes
+                    if cfg.memory_enabled && !full_response.is_empty() {
+                        let user_short: String = user_msg.chars().take(120).collect();
+                        let ai_short: String = full_response.chars().take(200).collect();
+                        let summary = format!("Usuario: {} | Buddy: {}", user_short, ai_short);
+                        tokio::task::spawn_blocking(move || {
+                            memory.write().unwrap().add("conversation", avatar_id, summary, cfg.memory_max_entries, &cfg.memory_path);
+                        });
+                    }
                     return;
                 }
 
@@ -163,6 +179,7 @@ pub async fn chat_stream(
                 let (out, new_think) = strip_think_delta(delta, in_think);
                 in_think = new_think;
                 if !out.is_empty() {
+                    full_response.push_str(&out);
                     let payload = serde_json::json!({ "delta": out }).to_string();
                     if tx.send(Ok(Event::default().data(payload))).await.is_err() {
                         return;
@@ -170,7 +187,16 @@ pub async fn chat_stream(
                 }
             }
         }
+        // Stream ended without [DONE] — save whatever we got
         let _ = tx.send(Ok(Event::default().data("[DONE]"))).await;
+        if cfg.memory_enabled && !full_response.is_empty() {
+            let user_short: String = user_msg.chars().take(120).collect();
+            let ai_short: String = full_response.chars().take(200).collect();
+            let summary = format!("Usuario: {} | Buddy: {}", user_short, ai_short);
+            tokio::task::spawn_blocking(move || {
+                memory.write().unwrap().add("conversation", avatar_id, summary, cfg.memory_max_entries, &cfg.memory_path);
+            });
+        }
     });
 
     Ok(Sse::new(ReceiverStream::new(rx)).keep_alive(KeepAlive::default()))
