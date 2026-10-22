@@ -66,18 +66,21 @@ export function RiveCharacter({ character, state, size, onStateComplete }: Props
 
     const front = frontRef.current
     const back = (1 - front) as 0 | 1
-    const newUid = uidRef.current++
 
-    // Mount new anim in back slot (invisible)
+    // Only remount the back slot if it doesn't already have this animation.
+    // If it does, the animation is already running at opacity:0 — skip the remount
+    // to avoid the 1-2 frame blank while the new Rive instance initialises.
     setSlots(prev => {
+      if (prev[back].anim === newAnim) return prev
       const next: [Slot, Slot] = [{ ...prev[0] }, { ...prev[1] }]
-      next[back] = { uid: newUid, anim: newAnim, opacity: 0 }
+      next[back] = { uid: uidRef.current++, anim: newAnim, opacity: 0 }
       return next
     })
 
-    // Double RAF: first ensures React committed the new mount,
-    // second ensures browser painted so CSS transition triggers correctly.
-    requestAnimationFrame(() => requestAnimationFrame(() => {
+    // 150ms delay: gives the new Rive instance time to render its first frame
+    // before we start the opacity crossfade. Double RAF (~33ms) isn't enough —
+    // Rive WASM + canvas first-paint takes ~100ms on a warm file cache.
+    setTimeout(() => {
       frontRef.current = back
       setSlots(prev => {
         const next: [Slot, Slot] = [{ ...prev[0] }, { ...prev[1] }]
@@ -85,7 +88,7 @@ export function RiveCharacter({ character, state, size, onStateComplete }: Props
         next[front] = { ...next[front], opacity: 0 }
         return next
       })
-    }))
+    }, 150)
 
     if (state === 'react_happy' && onStateComplete) {
       const t = setTimeout(onStateComplete, 1200)
@@ -94,15 +97,16 @@ export function RiveCharacter({ character, state, size, onStateComplete }: Props
   }, [state])
 
   return (
-    <div style={{ width: size, height: size, position: 'relative', flexShrink: 0 }}>
+    <div style={{ width: size, height: size, position: 'relative', flexShrink: 0, willChange: 'transform' }}>
       {slots.map(slot => (
         <div
           key={slot.uid}
           style={{
             position: 'absolute', top: 0, left: 0,
             opacity: slot.opacity,
-            transition: 'opacity 350ms ease',
+            transition: 'opacity 120ms ease',
             pointerEvents: 'none',
+            willChange: 'opacity',
           }}
         >
           <RiveAnim src={character.riveFile ?? ''} anim={slot.anim} size={size} />
