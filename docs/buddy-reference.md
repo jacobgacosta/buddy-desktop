@@ -212,13 +212,21 @@ ELEVENLABS_VOICE_ID=JBFqnCBsd6RMkjVDRZzb  ← voz por defecto (Georges)
 Configurada en `apps/desktop/src-tauri/tauri.conf.json`:
 
 ```
-260 × 480 px
 transparent: true
 decorations: false
 alwaysOnTop: true   ← dinámico vía set_z_order
 skipTaskbar: true
 resizable: false
 ```
+
+El tamaño de la ventana es **dinámico** — se ajusta vía `invoke('set_window_size', {w, h})`:
+
+| Estado | Ancho | Alto |
+|--------|-------|------|
+| Compacto (idle) | 260 | 220 |
+| Speech bubble | 260 | 310 |
+| Chat / menú | 260 | 480 |
+| Paneles de config | 360 | 640 |
 
 ### Single-instance
 
@@ -229,12 +237,17 @@ resizable: false
 | Comando | Parámetros | Descripción |
 |---------|-----------|-------------|
 | `move_window` | `x, y` | Mueve la ventana a coordenadas lógicas |
+| `set_window_size` | `w, h` | Redimensiona la ventana (ver tabla de tamaños) |
 | `get_monitor_bounds` | — | Retorna `[x, y, w, h]` del monitor actual |
 | `set_anchor` | `anchored: bool` | Activa/desactiva modo anclado |
 | `set_ignore_cursor` | `ignore: bool` | Passthrough de mouse (click-through) |
 | `set_z_order` | `on_top: bool` | Alterna si la ventana está siempre encima |
+| `set_panels_open` | `open: bool` | Notifica a click-through si hay paneles abiertos |
 | `get_audio_devices` | — | Lista dispositivos de entrada de audio |
 | `set_mic_device` | `device_name: string` | Cambia el micrófono activo |
+| `get_screens` | — | Lista monitores disponibles (`ScreenInfo[]`) |
+| `capture_screen` | `monitor: string` | Captura pantalla — `"buddy"` sigue al avatar, `"0"`, `"1"`… por índice; retorna PNG base64 |
+| `open_devtools` | — | Abre DevTools (debug) |
 
 ### Eventos Tauri (Rust → JS)
 
@@ -493,6 +506,7 @@ idle ──startWalking──► walk ──stopWalking──► idle
 |----|--------|-----------|------|
 | `ai-orb` | Orb | oye, hey, ey | rive |
 | `joy` | Joy | oye, hey, ey | rive |
+| `kabi` | Kabi | oye, hey, ey | rive |
 | `aurora` | Aurora | oye, hey, ey | canvas |
 
 Todos los personajes tienen `"Solo texto plano, sin emojis."` en su prompt de personalidad — esto previene que el LLM genere texto con emojis que Piper (o ElevenLabs) leería literalmente.
@@ -529,10 +543,16 @@ Binario Rust/Axum que Tauri lanza como sidecar. Lee configuración desde `server
 |--------|------|-------------|
 | GET | `/health` | `{ status: "ok", version: "0.1.0" }` |
 | GET | `/avatars` | Lista avatares disponibles |
-| POST | `/chat` | Conversación con LLM |
+| POST | `/chat` | Conversación con LLM (respuesta completa) |
+| POST | `/chat/stream` | Conversación con LLM (SSE streaming — usado por defecto) |
 | POST | `/transcribe` | Audio WAV → texto (via Whisper) |
 | POST | `/tts` | Texto → audio MP3/WAV (ElevenLabs primario, Piper fallback) |
 | POST | `/mood` | Decisión de mood via JSON Schema |
+| GET/PUT | `/context/config` | Lee o actualiza `ContextConfig` (memoria, screencap) |
+| POST | `/context/screenshot` | Recibe PNG base64 → analiza con Claude Haiku → guarda en memoria |
+| POST | `/context/memory` | Guarda una entrada de memoria manualmente |
+| GET | `/context/memories` | Lista entradas de memoria |
+| DELETE | `/context/memories` | Borra todas las entradas de memoria |
 
 ### POST /chat — detalles
 
@@ -560,7 +580,8 @@ Recibe audio WAV como `multipart/form-data`, lo reenvía a Whisper con:
 | Variable | Default | Descripción |
 |----------|---------|-------------|
 | `PORT` | `7788` | Puerto del servidor |
-| `OLLAMA_URL` | `http://localhost:11434` | URL del LLM (LM Studio) |
+| `ANTHROPIC_API_KEY` | — | Requerida para análisis de pantalla (Claude Haiku en /context/screenshot) |
+| `OLLAMA_URL` | `http://localhost:11434` | URL del LLM (LM Studio u Ollama) |
 | `LLM_MODEL` | `llama3.2:3b` | Modelo para /chat |
 | `PIPER_URL` | `http://localhost:5200` | URL de Piper TTS (fallback) |
 | `WHISPER_URL` | `http://localhost:8080` | URL de Whisper STT |
@@ -596,7 +617,9 @@ Recibe audio WAV como `multipart/form-data`, lo reenvía a Whisper con:
 | `buddy-history` | `Message[]`, máx. 30 |
 | `buddy-tts-voice` | `boolean` — TTS de voz activado |
 | `buddy-tts-text` | `boolean` — speech bubble activado |
-| `buddy-anim-<charId>` | Mapa de animaciones custom por personaje |
+| `buddy-tts-volume` | `number` — volumen TTS (0–1) |
+| `buddy-mic-enabled` | `boolean` — micrófono activado |
+| `buddy-anims-{id}` | Mapa de animaciones custom por personaje (ej. `buddy-anims-kabi`) |
 
 ---
 
@@ -648,14 +671,14 @@ VAD (Rust) → Whisper STT → intent routing → LLM → Piper TTS. Wake words 
 
 Buddy ejecuta acciones reales: buscar en web, crear eventos, leer archivos. Implementado como herramientas MCP que buddy-server expone al LLM durante el chat.
 
-### Subsistema 4 — Memoria persistente
+### Subsistema 4 — Memoria persistente ✅ IMPLEMENTADO
 
-Buddy recuerda conversaciones anteriores y preferencias. SQLite local via Tauri + embeddings para búsqueda semántica.
+`MemoryStore` persiste en `server/buddy-memory.json`. Cada entrada (`MemoryEntry`) tiene `id`, `timestamp`, `source` (`"conversation"` o `"screenshot"`), `avatar_id`, y `summary`. `build_system_prompt()` inyecta las últimas N entradas en el prompt de sistema como `[Contexto reciente]`. Configurable desde `ContextPanel` (habilitar/deshabilitar, cantidad a inyectar, ruta del archivo).
 
-### Subsistema 5 — Visión (cámara/pantalla)
+### Subsistema 5 — Visión (pantalla) ✅ IMPLEMENTADO (screencap)
 
-Buddy puede ver la pantalla y/o cámara web. Alimenta el MoodEngine como sensor adicional.
+`capture_screen` (WinAPI `BitBlt`, sin dependencias externas) captura el monitor donde está Buddy, redimensiona a máx. 1280px y retorna PNG base64. `useScreencap` envía la captura a `POST /context/screenshot` en un intervalo configurable. El servidor llama a Claude Haiku con la imagen para describir lo que hace el usuario y guarda el resultado en memoria. Cámara web: pendiente.
 
 ---
 
-*Última actualización: 2026-10-15 — ElevenLabs TTS integrado (primario, Piper fallback), fix animación Rive (key-based remount), perfil release opt-level=1 para GNU toolchain.*
+*Última actualización: 2026-10-29 — Sistema de memoria (MemoryStore + ContextPanel + streaming), conciencia de pantalla (capture\_screen + useScreencap), personaje Kabi, tamaño de ventana dinámico, Ctrl+Shift+Space global shortcut.*
